@@ -16,16 +16,24 @@ public sealed class SystemWrapper<T> : SystemWrapper
     }
 
     public override JobHandle Update(ref SystemContext ctx, JobHandle dep) {
-        if (typeof(IMainThreadSystem).IsAssignableFrom(typeof(T)) ||
-            typeof(IParallelSystem).IsAssignableFrom(typeof(T)))
+        if (typeof(IMainThreadSystem).IsAssignableFrom(typeof(T)))
         {
             dep.Complete();
             system.OnUpdate(ref ctx);
             return default;
         }
 
-        var job = new Job { System = system, Context = ctx };
-        return job.Schedule(dep);
+        if (typeof(IParallelBatchSystem).IsAssignableFrom(typeof(T)))
+        {
+            dep.Complete();
+            var batchSystem = (IParallelBatchSystem)(object)system;
+            batchSystem.OnPrepare(ref ctx, out int total, out int batchSize);
+            if (total <= 0) return default;
+            return batchSystem.ScheduleBatches(ref ctx, total, batchSize, dep);
+        }
+
+        var singleJob = new Job { System = system, Context = ctx };
+        return singleJob.Schedule(dep);
     }
 
     public override void Destroy(ref SystemContext ctx) {
