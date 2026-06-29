@@ -23,6 +23,12 @@ namespace MiniECS
 
         public void Add(int id, T c)
         {
+            if (lookup.TryGetValue(id, out int existing))
+            {
+                components[existing] = c;
+                return;
+            }
+
             lookup[id] = entities.Count;
             entities.Add(id);
             

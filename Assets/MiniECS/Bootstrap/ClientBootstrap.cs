@@ -1,4 +1,6 @@
+using MiniECS;
 using MiniECS.Netcode;
+using MiniECS.Rendering;
 using UnityEngine;
 
 public class ClientBootstrap : MonoBehaviour
@@ -7,6 +9,8 @@ public class ClientBootstrap : MonoBehaviour
 
     void Awake()
     {
+        EntityManager.Reset();
+        ModelRegistry.Clear();
         SystemRegistry.RegisterAll();
         scheduler = new SystemScheduler(false, true);
         TryInitEcsSync();

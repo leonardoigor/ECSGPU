@@ -120,5 +120,12 @@ namespace MiniECS
             }
             return count;
         }
+
+        public static void Reset()
+        {
+            entities = new EntityData[1024];
+            pools = new Dictionary<Type, object>();
+            nextId = 1;
+        }
     }
 }

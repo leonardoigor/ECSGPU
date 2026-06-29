@@ -5,21 +5,62 @@ namespace MiniECS.Rendering
 {
     public struct RenderSubmitSystem : ISystem, IClientSystem, IMainThreadSystem
     {
-        ComputeBuffer argsBuffer;
-        MaterialPropertyBlock mpb;
-        Bounds worldBounds;
+        static ComputeBuffer argsBuffer;
+        static MaterialPropertyBlock mpb;
+        static Bounds worldBounds;
+        static bool initialized;
+        static Camera mainCamera;
+        static VatRenderHook hook;
 
         public void OnCreate(ref SystemContext ctx)
         {
-            argsBuffer = new ComputeBuffer(5, sizeof(uint),
-                ComputeBufferType.IndirectArguments);
+            if (initialized) return;
+            argsBuffer = new ComputeBuffer(1, sizeof(uint) * 5, ComputeBufferType.IndirectArguments);
             mpb = new MaterialPropertyBlock();
             worldBounds = new Bounds(Vector3.zero, Vector3.one * 5000f);
+            mainCamera = Camera.main;
+
+            if (mainCamera == null)
+                Debug.LogError("[RenderSubmitSystem] OnCreate: Camera.main is NULL!");
+            else
+                Debug.Log($"[RenderSubmitSystem] OnCreate: mainCamera={mainCamera.name} pos={mainCamera.transform.position}");
+
+            var vatShader = Shader.Find("Custom/VatInstancing");
+            if (vatShader == null)
+                Debug.LogError("[RenderSubmitSystem] OnCreate: Shader 'Custom/VatInstancing' NOT FOUND!");
+            else if (!vatShader.isSupported)
+                Debug.LogError("[RenderSubmitSystem] OnCreate: Shader 'Custom/VatInstancing' is NOT SUPPORTED!");
+            else
+                Debug.Log("[RenderSubmitSystem] OnCreate: Shader 'Custom/VatInstancing' OK");
+
+            EnsureHook();
+            initialized = true;
         }
 
-        public void OnUpdate(ref SystemContext ctx)
+        static void EnsureHook()
         {
-            RenderCollectSystem.Scatter();
+            if (mainCamera == null)
+                return;
+
+            hook = mainCamera.GetComponent<VatRenderHook>();
+            if (hook == null)
+            {
+                hook = mainCamera.gameObject.AddComponent<VatRenderHook>();
+            }
+
+            DebugFlyCamera debugCam = mainCamera.GetComponent<DebugFlyCamera>();
+            if (debugCam == null)
+            {
+                debugCam = mainCamera.gameObject.AddComponent<DebugFlyCamera>();
+            }
+
+            hook.SetCamera(mainCamera);
+        }
+
+        internal static void RenderForCamera(Camera cam)
+        {
+            if (!initialized || cam == null || cam != mainCamera)
+                return;
             var batch = BatchData.Instance;
             int modelCount = ModelRegistry.Count;
 
@@ -32,14 +73,25 @@ namespace MiniECS.Rendering
                 var mesh = ModelRegistry.GetMesh(id);
                 var material = ModelRegistry.GetMaterial(id);
 
+                mpb.Clear();
                 batch.UploadAndDraw(id, mesh, material, mpb, argsBuffer, worldBounds);
             }
         }
 
+        public void OnUpdate(ref SystemContext ctx)
+        {
+            RenderCollectSystem.Scatter();
+            EnsureHook();
+        }
+
         public void OnDestroy(ref SystemContext ctx)
         {
-            argsBuffer?.Release();
-            BatchData.Instance.Dispose();
+            if (initialized)
+            {
+                argsBuffer?.Release();
+                BatchData.Instance.Dispose();
+                initialized = false;
+            }
         }
     }
 }

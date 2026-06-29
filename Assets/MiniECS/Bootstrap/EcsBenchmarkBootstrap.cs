@@ -1,3 +1,5 @@
+using MiniECS;
+using MiniECS.Rendering;
 using UnityEngine;
 
 public class EcsBenchmarkBootstrap : MonoBehaviour
@@ -6,6 +8,8 @@ public class EcsBenchmarkBootstrap : MonoBehaviour
 
     void Awake()
     {
+        EntityManager.Reset();
+        ModelRegistry.Clear();
         SystemRegistry.RegisterAll();
         scheduler = new SystemScheduler(true, true);
     }

@@ -11,7 +11,8 @@ namespace MiniECS.Rendering
         static NativeArray<int> slotForEntity;
         static NativeArray<Vector3> positionCache;
         static NativeArray<Quaternion> rotationCache;
-        static NativeArray<Matrix4x4> flatMatrices;
+        static NativeArray<Vector4> animCache;
+        static NativeArray<InstanceData> flatInstanceData;
         static NativeArray<int> prefix;
         static int modelCount;
         static int validCount;
@@ -27,13 +28,16 @@ namespace MiniECS.Rendering
             var posPool = EntityManager.Pool<PositionComponent>();
             var rotPool = EntityManager.Pool<RotationComponent>();
             var modPool = EntityManager.Pool<ModelIdComponent>();
+            var animPool = EntityManager.Pool<AnimationComponent>();
 
             var positions = posPool.components;
             var rotations = rotPool.components;
             var modelIds = modPool.components;
+            var anims = animPool.components;
             var entities = posPool.entities;
             var rotLookup = rotPool.lookup;
             var modLookup = modPool.lookup;
+            var animLookup = animPool.lookup;
 
             int count = entities.Count;
             int mc = ModelRegistry.Count;
@@ -75,7 +79,7 @@ namespace MiniECS.Rendering
                 prefixArr[m] = running;
                 running += c;
                 if (c > 0)
-                    batch.SetMatrices(m, new Matrix4x4[c], c);
+                    batch.SetInstanceData(m, new InstanceData[c], c);
             }
 
             int[] cursor = new int[mc];
@@ -93,6 +97,7 @@ namespace MiniECS.Rendering
 
             Vector3[] posArr = new Vector3[validCount];
             Quaternion[] rotArr = new Quaternion[validCount];
+            Vector4[] animArr = new Vector4[validCount];
 
             for (int i = 0; i < validCount; i++)
             {
@@ -100,6 +105,25 @@ namespace MiniECS.Rendering
                 int id = entities[poolIdx];
                 posArr[i] = positions[poolIdx].Value;
                 rotArr[i] = rotations[rotLookup[id]].Value;
+                if (animLookup.TryGetValue(id, out int animIdx))
+                {
+                    var anim = anims[animIdx];
+                    float clipStart = 0f;
+                    float clipFrameCount = anim.FrameCount;
+                    var vatData = ModelRegistry.GetVatData(modelOfEntityArr[i]);
+                    if (vatData != null && vatData.clips != null && vatData.clips.Length > 0)
+                    {
+                        int clipIndex = Mathf.Clamp(anim.AnimIndex, 0, vatData.clips.Length - 1);
+                        clipStart = vatData.clips[clipIndex].startFrame;
+                        clipFrameCount = vatData.clips[clipIndex].frameCount;
+                    }
+
+                    animArr[i] = new Vector4(anim.AnimIndex, anim.CurrentFrame, clipStart, clipFrameCount);
+                }
+                else
+                {
+                    animArr[i] = Vector4.zero;
+                }
             }
 
             DisposeOld();
@@ -107,7 +131,8 @@ namespace MiniECS.Rendering
             slotForEntity = new NativeArray<int>(slotForEntityArr, Allocator.TempJob);
             positionCache = new NativeArray<Vector3>(posArr, Allocator.TempJob);
             rotationCache = new NativeArray<Quaternion>(rotArr, Allocator.TempJob);
-            flatMatrices = new NativeArray<Matrix4x4>(validCount, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            animCache = new NativeArray<Vector4>(animArr, Allocator.TempJob);
+            flatInstanceData = new NativeArray<InstanceData>(validCount, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             prefix = new NativeArray<int>(prefixArr, Allocator.TempJob);
             modelCount = mc;
             RenderCollectSystem.validCount = validCount;
@@ -124,8 +149,9 @@ namespace MiniECS.Rendering
                 SlotForEntity = slotForEntity,
                 Positions = positionCache,
                 Rotations = rotationCache,
+                AnimData = animCache,
                 Prefix = prefix,
-                FlatMatrices = flatMatrices
+                FlatInstanceData = flatInstanceData
             };
             return job.Schedule(totalWork, batchSize, dep);
         }
@@ -135,7 +161,7 @@ namespace MiniECS.Rendering
             if (validCount <= 0)
                 return;
 
-            var matricesArr = flatMatrices.ToArray();
+            var dataArr = flatInstanceData.ToArray();
             var prefixArr = prefix.ToArray();
             var modelOfEntityArr = modelOfEntity.ToArray();
             var slotForEntityArr = slotForEntity.ToArray();
@@ -144,8 +170,8 @@ namespace MiniECS.Rendering
             {
                 int modelId = modelOfEntityArr[i];
                 int slot = slotForEntityArr[i];
-                int writeIdx = prefixArr[modelId] + slot;
-                BatchData.Instance.GetMatrices(modelId)[slot] = matricesArr[writeIdx];
+                int readIdx = prefixArr[modelId] + slot;
+                BatchData.Instance.GetInstanceData(modelId)[slot] = dataArr[readIdx];
             }
 
             DisposeOld();
@@ -157,7 +183,8 @@ namespace MiniECS.Rendering
             if (slotForEntity.IsCreated) slotForEntity.Dispose();
             if (positionCache.IsCreated) positionCache.Dispose();
             if (rotationCache.IsCreated) rotationCache.Dispose();
-            if (flatMatrices.IsCreated) flatMatrices.Dispose();
+            if (animCache.IsCreated) animCache.Dispose();
+            if (flatInstanceData.IsCreated) flatInstanceData.Dispose();
             if (prefix.IsCreated) prefix.Dispose();
         }
 

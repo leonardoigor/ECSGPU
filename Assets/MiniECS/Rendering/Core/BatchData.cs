@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace MiniECS.Rendering
 {
@@ -7,8 +8,10 @@ namespace MiniECS.Rendering
     {
         public static readonly BatchData Instance = new BatchData();
 
-        readonly List<Matrix4x4[]> perModelMatrices = new();
+        readonly List<InstanceData[]> perModelInstanceData = new();
         readonly List<ComputeBuffer> perModelBuffers = new();
+        readonly List<ComputeBuffer> perModelMatrixBuffers = new();
+        readonly HashSet<int> invalidVatModels = new();
         int[] counts;
 
         BatchData()
@@ -18,10 +21,11 @@ namespace MiniECS.Rendering
 
         public void EnsureModelCapacity(int modelCount)
         {
-            while (perModelMatrices.Count < modelCount)
+            while (perModelInstanceData.Count < modelCount)
             {
-                perModelMatrices.Add(null);
+                perModelInstanceData.Add(null);
                 perModelBuffers.Add(null);
+                perModelMatrixBuffers.Add(null);
             }
             if (modelCount > counts.Length)
             {
@@ -33,11 +37,10 @@ namespace MiniECS.Rendering
 
         public ref int GetCount(int modelId) => ref counts[modelId];
 
-        public void SetMatrices(int modelId, Matrix4x4[] matrices, int instanceCount)
+        public void SetInstanceData(int modelId, InstanceData[] data, int instanceCount)
         {
-            perModelMatrices[modelId] = matrices;
+            perModelInstanceData[modelId] = data;
             counts[modelId] = instanceCount;
-
             EnsureBufferSize(modelId, instanceCount);
         }
 
@@ -50,11 +53,18 @@ namespace MiniECS.Rendering
             buf?.Release();
             perModelBuffers[modelId] = new ComputeBuffer(
                 Mathf.NextPowerOfTwo(needed),
+                sizeof(float) * 20
+            );
+
+            var matBuf = perModelMatrixBuffers[modelId];
+            matBuf?.Release();
+            perModelMatrixBuffers[modelId] = new ComputeBuffer(
+                Mathf.NextPowerOfTwo(needed),
                 sizeof(float) * 16
             );
         }
 
-        public Matrix4x4[] GetMatrices(int modelId) => perModelMatrices[modelId];
+        public InstanceData[] GetInstanceData(int modelId) => perModelInstanceData[modelId];
 
         public void UploadAndDraw(int modelId, Mesh mesh, Material material,
             MaterialPropertyBlock mpb, ComputeBuffer argsBuffer, Bounds bounds)
@@ -63,28 +73,76 @@ namespace MiniECS.Rendering
             if (instanceCount == 0)
                 return;
 
-            var matrices = perModelMatrices[modelId];
+            var instanceData = perModelInstanceData[modelId];
             var buffer = perModelBuffers[modelId];
+            var matrixBuffer = perModelMatrixBuffers[modelId];
 
-            buffer.SetData(matrices, 0, 0, instanceCount);
-
-            uint[] args =
+            if (instanceData == null)
             {
-                mesh.GetIndexCount(0),
-                (uint)instanceCount,
-                mesh.GetIndexStart(0),
-                mesh.GetBaseVertex(0),
-                0
-            };
+                Debug.LogError($"[BatchData] UploadAndDraw: instanceData is NULL for modelId={modelId}");
+                return;
+            }
+            if (buffer == null)
+            {
+                Debug.LogError($"[BatchData] UploadAndDraw: ComputeBuffer is NULL for modelId={modelId}");
+                return;
+            }
+            if (mesh == null)
+            {
+                Debug.LogError($"[BatchData] UploadAndDraw: mesh is NULL for modelId={modelId}");
+                return;
+            }
+            if (material == null)
+            {
+                Debug.LogError($"[BatchData] UploadAndDraw: material is NULL for modelId={modelId}");
+                return;
+            }
+
+            buffer.SetData(instanceData, 0, 0, instanceCount);
+
+            var args = new uint[5];
+            args[0] = mesh.GetIndexCount(0);
+            args[1] = (uint)instanceCount;
+            args[2] = mesh.GetIndexStart(0);
+            args[3] = mesh.GetBaseVertex(0);
+            args[4] = 0;
             argsBuffer.SetData(args);
 
-            mpb.SetBuffer("_MatrixBuffer", buffer);
+            var vatData = ModelRegistry.GetVatData(modelId);
+            if (vatData != null)
+            {
+                if (mesh.vertexCount != vatData.vertexCount)
+                {
+                    if (invalidVatModels.Add(modelId))
+                    {
+                        Debug.LogError(
+                            $"[BatchData] VAT mesh mismatch on modelId={modelId}. " +
+                            $"Draw mesh vertexCount={mesh.vertexCount} " +
+                            $"but VAT vertexCount={vatData.vertexCount}. Re-bake the VAT asset."
+                        );
+                    }
+                    return;
+                }
 
-            Graphics.DrawMeshInstancedIndirect(
-                mesh, 0, material, bounds,
-                argsBuffer, 0, mpb,
-                UnityEngine.Rendering.ShadowCastingMode.On, true
-            );
+                mpb.SetBuffer("_InstanceBuffer", buffer);
+                mpb.SetTexture("_PositionVAT", vatData.positionTexture);
+                mpb.SetTexture("_NormalVAT", vatData.normalTexture);
+                mpb.SetFloat("_VATWidth", vatData.vertexCount);
+                mpb.SetFloat("_VATHeight", vatData.totalFrames);
+            }
+            else
+            {
+                var matrices = new Matrix4x4[instanceCount];
+                for (int i = 0; i < instanceCount; i++)
+                    matrices[i] = instanceData[i].transformMatrix;
+                matrixBuffer.SetData(matrices, 0, 0, instanceCount);
+                mpb.SetBuffer("_MatrixBuffer", matrixBuffer);
+            }
+
+            var cmd = new CommandBuffer { name = "VAT Draw" };
+            cmd.DrawMeshInstancedIndirect(mesh, 0, material, -1, argsBuffer, 0, mpb);
+            Graphics.ExecuteCommandBuffer(cmd);
+            cmd.Release();
         }
 
         public void ClearCounts(int modelCount)
@@ -96,9 +154,14 @@ namespace MiniECS.Rendering
         public void Dispose()
         {
             for (int i = 0; i < perModelBuffers.Count; i++)
+            {
                 perModelBuffers[i]?.Release();
-            perModelMatrices.Clear();
+                perModelMatrixBuffers[i]?.Release();
+            }
+            invalidVatModels.Clear();
+            perModelInstanceData.Clear();
             perModelBuffers.Clear();
+            perModelMatrixBuffers.Clear();
         }
     }
 }

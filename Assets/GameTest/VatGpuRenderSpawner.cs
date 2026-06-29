@@ -1,0 +1,134 @@
+using UnityEngine;
+using MiniECS;
+using MiniECS.Rendering;
+
+public class VatGpuRenderSpawner : MonoBehaviour
+{
+    [Header("VAT Models")]
+    public VatAnimationData[] vatModels;
+
+    [Header("Spawn")]
+    public int count = 10000;
+    public float radius = 50f;
+    public Vector3 center = Vector3.zero;
+
+    [Header("Randomizer")]
+    public bool enableRandomizer = true;
+    public float minInterval = 1f;
+    public float maxInterval = 10f;
+
+    [Header("Mode")]
+    public bool flipFlop = true;
+
+    int[] entities;
+    int[] animCounts;
+    float[] timers;
+    int frameIndex;
+
+    void Start()
+    {
+        if (vatModels == null || vatModels.Length == 0)
+        {
+            Debug.LogError("[VatGpuRenderSpawner] No VatAnimationData assigned.");
+            return;
+        }
+
+        int[] modelIds = new int[vatModels.Length];
+        for (int i = 0; i < vatModels.Length; i++)
+        {
+            var vat = vatModels[i];
+            if (vat == null || vat.originalMesh == null || vat.animationMaterial == null)
+            {
+                Debug.LogError($"[VatGpuRenderSpawner] VatAnimationData at index {i} is incomplete.");
+                return;
+            }
+            modelIds[i] = ModelRegistry.Register(vat.originalMesh, vat.animationMaterial, vat);
+        }
+
+        entities = new int[count];
+        animCounts = new int[count];
+        timers = new float[count];
+
+        for (int i = 0; i < count; i++)
+        {
+            int modelIndex = flipFlop ? (i % vatModels.Length) : Random.Range(0, vatModels.Length);
+            int modelId = modelIds[modelIndex];
+            var clips = vatModels[modelIndex].clips;
+            int clipCount = clips.Length;
+            int startAnim = clipCount > 0 ? Random.Range(0, clipCount) : 0;
+            int startFrames = clipCount > 0 ? clips[startAnim].frameCount : 30;
+            float startFrameRate = clipCount > 0 ? clips[startAnim].frameRate : 30f;
+
+            var entity = EntityManager.CreateEntity();
+            EntityManager.Add(entity, new PositionComponent
+            {
+                Value = center + Random.insideUnitSphere * radius
+            });
+            EntityManager.Add(entity, new RotationComponent
+            {
+                Value = Random.rotationUniform
+            });
+            EntityManager.Add(entity, new ModelIdComponent { Value = modelId });
+            EntityManager.Add(entity, new AnimationComponent
+            {
+                AnimIndex = startAnim,
+                CurrentFrame = Random.Range(0f, startFrames),
+                Speed = Random.Range(0.8f, 1.2f),
+                FrameCount = startFrames,
+                FrameRate = startFrameRate
+            });
+
+            entities[i] = entity.Id;
+            animCounts[i] = clipCount;
+            timers[i] = Random.Range(minInterval, maxInterval);
+        }
+
+        Debug.Log($"[VatGpuRenderSpawner] Spawned {count} VAT entities across {vatModels.Length} model(s). flipFlop={flipFlop} randomizer={enableRandomizer}");
+
+        if (!enableRandomizer)
+            Destroy(this);
+    }
+
+    void Update()
+    {
+        if (count == 0) return;
+
+        float avgInterval = (minInterval + maxInterval) * 0.5f;
+        int perFrame = Mathf.Max(1, (int)(count / avgInterval));
+        int start = (frameIndex * perFrame) % count;
+
+        for (int i = 0; i < perFrame; i++)
+        {
+            int idx = (start + i) % count;
+            timers[idx] -= Time.deltaTime;
+            if (timers[idx] <= 0f)
+            {
+                int c = animCounts[idx];
+                if (c > 1)
+                {
+                    var modelPool = EntityManager.Pool<ModelIdComponent>();
+                    var pool = EntityManager.Pool<AnimationComponent>();
+                    if (!pool.lookup.TryGetValue(entities[idx], out int animIdx) ||
+                        !modelPool.lookup.TryGetValue(entities[idx], out int modelIdx))
+                        continue;
+
+                    int modelId = modelPool.components[modelIdx].Value;
+                    var vatData = ModelRegistry.GetVatData(modelId);
+                    ref var anim = ref pool.components[animIdx];
+                    int oldIdx = anim.AnimIndex;
+                    int newIdx = (oldIdx + 1 + Random.Range(0, c - 1)) % c;
+                    if (vatData == null || vatData.clips == null || vatData.clips.Length <= newIdx)
+                        continue;
+
+                    anim.AnimIndex = newIdx;
+                    anim.CurrentFrame = 0f;
+                    anim.FrameCount = vatData.clips[newIdx].frameCount;
+                    anim.FrameRate = vatData.clips[newIdx].frameRate;
+                }
+                timers[idx] = Random.Range(minInterval, maxInterval);
+            }
+        }
+
+        frameIndex++;
+    }
+}
