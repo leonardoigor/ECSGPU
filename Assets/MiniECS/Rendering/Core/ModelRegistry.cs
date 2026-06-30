@@ -58,22 +58,22 @@ namespace MiniECS.Rendering
                     lodBaseForVatData[vatId] = id;
                     lodBaseForModel[id] = id;
 
-                    if (vatData.lodLowMesh != null)
+                    if (vatData.lodLowMaterial != null)
                     {
                         int lod2Id = meshes.Count;
-                        meshes.Add(vatData.lodLowMesh);
-                        materials.Add(vatData.lodLowMaterial != null ? EnsureCompatible(vatData.lodLowMaterial) : EnsureCompatible(material));
+                        meshes.Add(mesh);
+                        materials.Add(EnsureCompatible(vatData.lodLowMaterial));
                         perModelVat.Add(vatData);
-                        lookup[Hash(vatData.lodLowMesh, vatData.lodLowMaterial ?? material)] = lod2Id;
+                        lookup[Hash(mesh, vatData.lodLowMaterial)] = lod2Id;
                         lodBaseForModel[lod2Id] = id;
                     }
-                    if (vatData.lodUltraMesh != null)
+                    if (vatData.lodUltraMaterial != null)
                     {
                         int lod3Id = meshes.Count;
-                        meshes.Add(vatData.lodUltraMesh);
-                        materials.Add(vatData.lodUltraMaterial != null ? EnsureCompatible(vatData.lodUltraMaterial) : EnsureCompatible(material));
+                        meshes.Add(mesh);
+                        materials.Add(EnsureCompatible(vatData.lodUltraMaterial));
                         perModelVat.Add(vatData);
-                        lookup[Hash(vatData.lodUltraMesh, vatData.lodUltraMaterial ?? material)] = lod3Id;
+                        lookup[Hash(mesh, vatData.lodUltraMaterial)] = lod3Id;
                         lodBaseForModel[lod3Id] = id;
                     }
                 }

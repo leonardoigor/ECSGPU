@@ -2,7 +2,6 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 using System.Collections.Generic;
-using UnityMeshSimplifier;
 
 namespace MiniECS.Rendering.Authoring.Editor
 {
@@ -613,23 +612,7 @@ namespace MiniECS.Rendering.Authoring.Editor
 
             vatData.animationMaterial = mat;
 
-            // ── Create LOD meshes via simplification ──
-            var simplifier = new MeshSimplifier();
-            simplifier.Initialize(bakedReferenceMesh);
-            simplifier.SimplifyMesh(0.35f);
-            var lodLowMesh = simplifier.ToMesh();
-            lodLowMesh.name = name + "_LOD2_Mesh";
-
-            var simplifierUltra = new MeshSimplifier();
-            simplifierUltra.Initialize(bakedReferenceMesh);
-            simplifierUltra.SimplifyMesh(0.05f);
-            var lodUltraMesh = simplifierUltra.ToMesh();
-            lodUltraMesh.name = name + "_LOD3_Mesh";
-
-            vatData.lodLowMesh = lodLowMesh;
-            vatData.lodUltraMesh = lodUltraMesh;
-
-            // ── Create LOD materials ──
+            // ── Create LOD materials (same mesh, simpler shaders) ──
             var simpleShader = Shader.Find("Custom/VatSimple");
             var unlitShader = Shader.Find("Custom/VatUnlit");
 
@@ -685,8 +668,6 @@ namespace MiniECS.Rendering.Authoring.Editor
             SaveTextureSubAsset(vatData, vatData.emissionTexture, name + "_Emission");
             SaveTextureSubAsset(vatData, vatData.occlusionTexture, name + "_Occlusion");
 
-            AssetDatabase.AddObjectToAsset(lodLowMesh, vatData);
-            AssetDatabase.AddObjectToAsset(lodUltraMesh, vatData);
             if (lodLowMat != null)
                 AssetDatabase.AddObjectToAsset(lodLowMat, vatData);
             if (lodUltraMat != null)

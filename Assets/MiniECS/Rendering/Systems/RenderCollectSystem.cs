@@ -109,12 +109,12 @@ namespace MiniECS.Rendering
                                 if (distSqr > vatData.sqrCullDistance)
                                     continue;
 
-                                if (distSqr > vatData.sqrLod3Distance && vatData.lodUltraMesh != null)
+                                if (distSqr > vatData.sqrLod3Distance && vatData.lodUltraMaterial != null)
                                 {
                                     lodLevel = 3;
                                     finalModelId = baseModelId + 2;
                                 }
-                                else if (distSqr > vatData.sqrLod2Distance && vatData.lodLowMesh != null)
+                                else if (distSqr > vatData.sqrLod2Distance && vatData.lodLowMaterial != null)
                                 {
                                     lodLevel = 2;
                                     finalModelId = baseModelId + 1;

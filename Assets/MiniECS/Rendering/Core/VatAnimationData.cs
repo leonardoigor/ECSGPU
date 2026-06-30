@@ -18,9 +18,7 @@ namespace MiniECS.Rendering
         public int vertexCount;
         public int totalFrames;
 
-        [Header("LOD Meshes (created by baker)")]
-        public Mesh lodLowMesh;
-        public Mesh lodUltraMesh;
+        [Header("LOD Materials (created by baker)")]
         public Material lodLowMaterial;
         public Material lodUltraMaterial;
 

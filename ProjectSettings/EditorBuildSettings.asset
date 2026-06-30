@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/GpuRenderTest.unity
+    guid: b4635439f973ab54ca0098b3ffe579b3
   m_configObjects: {}

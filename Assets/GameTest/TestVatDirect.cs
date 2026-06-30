@@ -16,12 +16,14 @@ public class TestVatDirect : MonoBehaviour
     {
         if (vatData == null)
         {
+#if UNITY_EDITOR
             var guids = UnityEditor.AssetDatabase.FindAssets("t:VatAnimationData");
             if (guids.Length > 0)
             {
                 var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
                 vatData = UnityEditor.AssetDatabase.LoadAssetAtPath<VatAnimationData>(path);
             }
+#endif
         }
 
         if (vatData == null || vatData.originalMesh == null || vatData.animationMaterial == null)
