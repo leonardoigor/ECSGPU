@@ -23,13 +23,15 @@ namespace MiniECS.Rendering.Authoring
                 return;
             }
 
-            int modelId = ModelRegistry.Register(mesh, material, vatData);
+            vatData.ComputeSqrDistances();
+
+            int baseModelId = ModelRegistry.Register(mesh, material, vatData);
             int initialFrameCount = vatData.clips != null && vatData.clips.Length > 0 ? vatData.clips[0].frameCount : 1;
             float initialFrameRate = vatData.clips != null && vatData.clips.Length > 0 ? vatData.clips[0].frameRate : 30f;
             var entity = EntityManager.CreateEntity();
             EntityManager.Add(entity, new PositionComponent { Value = transform.position });
             EntityManager.Add(entity, new RotationComponent { Value = transform.rotation });
-            EntityManager.Add(entity, new ModelIdComponent { Value = modelId });
+            EntityManager.Add(entity, new ModelIdComponent { Value = baseModelId });
             EntityManager.Add(entity, new AnimationComponent
             {
                 AnimIndex = 0,

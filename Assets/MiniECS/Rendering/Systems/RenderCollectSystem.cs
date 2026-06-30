@@ -20,6 +20,7 @@ namespace MiniECS.Rendering
 
         static Plane[] frustumPlanes = new Plane[6];
         static Camera cachedCamera;
+        static Vector3 cachedCameraPos;
         static float cullingRadius = 2.0f;
 
         public void OnCreate(ref SystemContext ctx) { }
@@ -58,9 +59,14 @@ namespace MiniECS.Rendering
             if (cachedCamera == null)
                 cachedCamera = Camera.main;
             if (cachedCamera != null)
+            {
                 GeometryUtility.CalculateFrustumPlanes(cachedCamera, frustumPlanes);
+                cachedCameraPos = cachedCamera.transform.position;
+            }
 
             int[] tempModelIds = new int[count];
+            int[] tempLodLevels = new int[count];
+            float[] tempAnimFrames = new float[count];
             int[] validIndices = new int[count];
             int validCount = 0;
 
@@ -69,10 +75,11 @@ namespace MiniECS.Rendering
                 int id = entities[i];
                 if (rotLookup.TryGetValue(id, out _) && modLookup.TryGetValue(id, out int modIdx))
                 {
-                    int modelId = modelIds[modIdx].Value;
-                    if (modelId >= 0 && modelId < mc)
+                    int baseModelId = modelIds[modIdx].Value;
+                    if (baseModelId >= 0 && baseModelId < mc)
                     {
                         Vector3 pos = positions[i].Value;
+
                         bool visible = true;
                         for (int p = 0; p < 6; p++)
                         {
@@ -84,9 +91,45 @@ namespace MiniECS.Rendering
                         }
                         if (!visible) continue;
 
-                        batch.GetCount(modelId)++;
+                        int lodLevel = 1;
+                        int finalModelId = baseModelId;
+                        float rawAnimFrame = 0f;
+
+                        if (animLookup.TryGetValue(id, out int animIdx))
+                        {
+                            var anim = anims[animIdx];
+                            float frameRate = anim.FrameRate > 0f ? anim.FrameRate : 30f;
+                            rawAnimFrame = anim.CurrentFrame;
+
+                            var vatData = ModelRegistry.GetVatData(baseModelId);
+                            if (vatData != null && vatData.sqrCullDistance > 0f)
+                            {
+                                float distSqr = (pos - cachedCameraPos).sqrMagnitude;
+
+                                if (distSqr > vatData.sqrCullDistance)
+                                    continue;
+
+                                if (distSqr > vatData.sqrLod3Distance && vatData.lodUltraMesh != null)
+                                {
+                                    lodLevel = 3;
+                                    finalModelId = baseModelId + 2;
+                                }
+                                else if (distSqr > vatData.sqrLod2Distance && vatData.lodLowMesh != null)
+                                {
+                                    lodLevel = 2;
+                                    finalModelId = baseModelId + 1;
+                                }
+                            }
+                        }
+
+                        if (finalModelId >= mc)
+                            finalModelId = baseModelId;
+
+                        batch.GetCount(finalModelId)++;
                         validIndices[validCount] = i;
-                        tempModelIds[validCount] = modelId;
+                        tempModelIds[validCount] = finalModelId;
+                        tempLodLevels[validCount] = lodLevel;
+                        tempAnimFrames[validCount] = rawAnimFrame;
                         validCount++;
                     }
                 }
@@ -128,6 +171,10 @@ namespace MiniECS.Rendering
             {
                 int poolIdx = validIndices[i];
                 int id = entities[poolIdx];
+                int finalModelId = tempModelIds[i];
+                int lodLevel = tempLodLevels[i];
+                float rawAnimFrame = tempAnimFrames[i];
+
                 posArr[i] = positions[poolIdx].Value;
                 rotArr[i] = rotations[rotLookup[id]].Value;
 
@@ -141,7 +188,7 @@ namespace MiniECS.Rendering
                     var anim = anims[animIdx];
                     float clipStart = 0f;
                     float clipFrameCount = anim.FrameCount;
-                    var vatData = ModelRegistry.GetVatData(modelOfEntityArr[i]);
+                    var vatData = ModelRegistry.GetVatData(ModelRegistry.GetLodBaseId(finalModelId));
                     if (vatData != null && vatData.clips != null && vatData.clips.Length > 0)
                     {
                         int clipIndex = Mathf.Clamp(anim.AnimIndex, 0, vatData.clips.Length - 1);
@@ -149,7 +196,21 @@ namespace MiniECS.Rendering
                         clipFrameCount = vatData.clips[clipIndex].frameCount;
                     }
 
-                    animArr[i] = new Vector4(anim.AnimIndex, anim.CurrentFrame, clipStart, clipFrameCount);
+                    float quantizedFrame = rawAnimFrame;
+                    if (lodLevel == 2)
+                    {
+                        quantizedFrame = Mathf.Floor(rawAnimFrame / 2f) * 2f;
+                        int bucket = id % 2;
+                        quantizedFrame += bucket * 0.5f;
+                    }
+                    else if (lodLevel == 3)
+                    {
+                        quantizedFrame = Mathf.Floor(rawAnimFrame / 4f) * 4f;
+                        int bucket = id % 4;
+                        quantizedFrame += bucket * 0.5f;
+                    }
+
+                    animArr[i] = new Vector4(anim.AnimIndex, quantizedFrame, clipStart, clipFrameCount);
                 }
                 else
                 {

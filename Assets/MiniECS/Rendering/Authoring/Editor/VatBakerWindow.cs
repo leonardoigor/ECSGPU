@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 using System.Collections.Generic;
+using UnityMeshSimplifier;
 
 namespace MiniECS.Rendering.Authoring.Editor
 {
@@ -29,6 +30,9 @@ namespace MiniECS.Rendering.Authoring.Editor
         string scanScope = "Assets";
         bool hasScanned;
         AnimationClip clipToAdd;
+        float lod2Distance = 20f;
+        float lod3Distance = 50f;
+        float cullDistance = 100f;
 
         [MenuItem("Tools/MiniECS/VAT Baker")]
         static void Open()
@@ -75,6 +79,12 @@ namespace MiniECS.Rendering.Authoring.Editor
 
             frameRate = EditorGUILayout.FloatField("Frame Rate", frameRate);
             normalHalfPrecision = EditorGUILayout.Toggle("Normal RGBAHalf (else RGBA32)", normalHalfPrecision);
+            EditorGUILayout.Space();
+
+            EditorGUILayout.LabelField("LOD Distances (meters)", EditorStyles.boldLabel);
+            lod2Distance = EditorGUILayout.FloatField("LOD2 Distance", lod2Distance);
+            lod3Distance = EditorGUILayout.FloatField("LOD3 Distance", lod3Distance);
+            cullDistance = EditorGUILayout.FloatField("Cull Distance", cullDistance);
             EditorGUILayout.Space();
         }
 
@@ -603,6 +613,60 @@ namespace MiniECS.Rendering.Authoring.Editor
 
             vatData.animationMaterial = mat;
 
+            // ── Create LOD meshes via simplification ──
+            var simplifier = new MeshSimplifier();
+            simplifier.Initialize(bakedReferenceMesh);
+            simplifier.SimplifyMesh(0.35f);
+            var lodLowMesh = simplifier.ToMesh();
+            lodLowMesh.name = name + "_LOD2_Mesh";
+
+            var simplifierUltra = new MeshSimplifier();
+            simplifierUltra.Initialize(bakedReferenceMesh);
+            simplifierUltra.SimplifyMesh(0.05f);
+            var lodUltraMesh = simplifierUltra.ToMesh();
+            lodUltraMesh.name = name + "_LOD3_Mesh";
+
+            vatData.lodLowMesh = lodLowMesh;
+            vatData.lodUltraMesh = lodUltraMesh;
+
+            // ── Create LOD materials ──
+            var simpleShader = Shader.Find("Custom/VatSimple");
+            var unlitShader = Shader.Find("Custom/VatUnlit");
+
+            Material lodLowMat = null;
+            if (simpleShader != null)
+            {
+                lodLowMat = new Material(simpleShader);
+                lodLowMat.name = name + "_LOD2_Material";
+                lodLowMat.enableInstancing = true;
+                lodLowMat.SetTexture("_PositionVAT", posTex);
+                lodLowMat.SetTexture("_NormalVAT", normTex);
+                lodLowMat.SetFloat("_VATWidth", vertexCount);
+                lodLowMat.SetFloat("_VATHeight", totalFrames);
+                ApplyMaterialToLodMaterial(srcMat, lodLowMat, vatData, false);
+            }
+
+            Material lodUltraMat = null;
+            if (unlitShader != null)
+            {
+                lodUltraMat = new Material(unlitShader);
+                lodUltraMat.name = name + "_LOD3_Material";
+                lodUltraMat.enableInstancing = true;
+                lodUltraMat.SetTexture("_PositionVAT", posTex);
+                lodUltraMat.SetFloat("_VATWidth", vertexCount);
+                lodUltraMat.SetFloat("_VATHeight", totalFrames);
+                ApplyMaterialToLodMaterial(srcMat, lodUltraMat, vatData, true);
+            }
+
+            vatData.lodLowMaterial = lodLowMat;
+            vatData.lodUltraMaterial = lodUltraMat;
+
+            // ── Set LOD distances ──
+            vatData.lod2Distance = lod2Distance;
+            vatData.lod3Distance = lod3Distance;
+            vatData.cullDistance = cullDistance;
+            vatData.ComputeSqrDistances();
+
             // ── Save assets ──
             string assetPath = Path.Combine(outputRoot, name + "_VAT.asset");
             var existing = AssetDatabase.LoadMainAssetAtPath(assetPath);
@@ -620,6 +684,13 @@ namespace MiniECS.Rendering.Authoring.Editor
             SaveTextureSubAsset(vatData, vatData.metallicTexture, name + "_Metallic");
             SaveTextureSubAsset(vatData, vatData.emissionTexture, name + "_Emission");
             SaveTextureSubAsset(vatData, vatData.occlusionTexture, name + "_Occlusion");
+
+            AssetDatabase.AddObjectToAsset(lodLowMesh, vatData);
+            AssetDatabase.AddObjectToAsset(lodUltraMesh, vatData);
+            if (lodLowMat != null)
+                AssetDatabase.AddObjectToAsset(lodLowMat, vatData);
+            if (lodUltraMat != null)
+                AssetDatabase.AddObjectToAsset(lodUltraMat, vatData);
 
             return true;
         }
@@ -679,6 +750,29 @@ namespace MiniECS.Rendering.Authoring.Editor
             {
                 if (src.HasProperty("_Color"))
                     dst.SetColor("_Color", src.GetColor("_Color") * vatData.albedoTint);
+            }
+        }
+
+        static void ApplyMaterialToLodMaterial(Material src, Material dst, VatAnimationData vatData, bool unlit)
+        {
+            if (vatData.albedoTexture != null)
+                dst.SetTexture("_MainTex", vatData.albedoTexture);
+
+            dst.SetColor("_Color", vatData.albedoTint);
+
+            if (src != null && src.HasProperty("_Color"))
+                dst.SetColor("_Color", src.GetColor("_Color") * vatData.albedoTint);
+
+            if (!unlit)
+            {
+                if (vatData.metallicTexture != null)
+                    dst.SetTexture("_MetallicGlossMap", vatData.metallicTexture);
+                if (vatData.emissionTexture != null)
+                    dst.SetTexture("_EmissionMap", vatData.emissionTexture);
+
+                dst.SetFloat("_Metallic", vatData.metallic);
+                dst.SetFloat("_Glossiness", vatData.smoothness);
+                dst.SetColor("_EmissionColor", vatData.emissionColor);
             }
         }
 

@@ -46,6 +46,7 @@ public class VatGpuRenderSpawner : MonoBehaviour
                 Debug.LogError($"[VatGpuRenderSpawner] VatAnimationData at index {i} is incomplete.");
                 return;
             }
+            vat.ComputeSqrDistances();
             modelIds[i] = ModelRegistry.Register(vat.originalMesh, vat.animationMaterial, vat);
         }
 

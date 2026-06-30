@@ -10,6 +10,8 @@ namespace MiniECS.Rendering
         static readonly Dictionary<int, int> lookup = new();
         static Shader instancingShader;
         static readonly List<VatAnimationData> perModelVat = new();
+        static readonly Dictionary<int, int> lodBaseForModel = new();
+        static readonly Dictionary<int, int> lodBaseForVatData = new();
 
         static int Hash(Mesh mesh, Material material)
         {
@@ -47,7 +49,52 @@ namespace MiniECS.Rendering
             materials.Add(EnsureCompatible(material));
             perModelVat.Add(vatData);
             lookup[key] = id;
+
+            if (vatData != null)
+            {
+                int vatId = vatData.GetInstanceID();
+                if (!lodBaseForVatData.ContainsKey(vatId))
+                {
+                    lodBaseForVatData[vatId] = id;
+                    lodBaseForModel[id] = id;
+
+                    if (vatData.lodLowMesh != null)
+                    {
+                        int lod2Id = meshes.Count;
+                        meshes.Add(vatData.lodLowMesh);
+                        materials.Add(vatData.lodLowMaterial != null ? EnsureCompatible(vatData.lodLowMaterial) : EnsureCompatible(material));
+                        perModelVat.Add(vatData);
+                        lookup[Hash(vatData.lodLowMesh, vatData.lodLowMaterial ?? material)] = lod2Id;
+                        lodBaseForModel[lod2Id] = id;
+                    }
+                    if (vatData.lodUltraMesh != null)
+                    {
+                        int lod3Id = meshes.Count;
+                        meshes.Add(vatData.lodUltraMesh);
+                        materials.Add(vatData.lodUltraMaterial != null ? EnsureCompatible(vatData.lodUltraMaterial) : EnsureCompatible(material));
+                        perModelVat.Add(vatData);
+                        lookup[Hash(vatData.lodUltraMesh, vatData.lodUltraMaterial ?? material)] = lod3Id;
+                        lodBaseForModel[lod3Id] = id;
+                    }
+                }
+            }
+
             return id;
+        }
+
+        public static int GetLodBaseId(int modelId)
+        {
+            if (modelId >= 0 && modelId < meshes.Count && lodBaseForModel.TryGetValue(modelId, out int baseId))
+                return baseId;
+            return modelId;
+        }
+
+        public static int GetLodLevel(int modelId)
+        {
+            if (!lodBaseForModel.TryGetValue(modelId, out int baseId))
+                return 1;
+            int offset = modelId - baseId;
+            return offset + 1;
         }
 
         static Material EnsureCompatible(Material material)
@@ -81,6 +128,8 @@ namespace MiniECS.Rendering
             materials.Clear();
             lookup.Clear();
             perModelVat.Clear();
+            lodBaseForModel.Clear();
+            lodBaseForVatData.Clear();
             instancingShader = null;
         }
 
