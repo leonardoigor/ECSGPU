@@ -216,6 +216,98 @@ EntityManager.Query<ValueRW<PositionComponent>>()
     .ForEach(new BounceProcessor());
 ```
 
+### Choosing an Iteration Approach
+
+There are 4 ways to iterate entities in MiniECS. Each has different trade-offs:
+
+#### 1. Direct Pool Access (`Pool<T>()`)
+
+```csharp
+var pool = EntityManager.Pool<PositionComponent>();
+for (int i = 0; i < pool.entities.Count; i++)
+{
+    ref var comp = ref pool.components[i];
+    // ...
+}
+```
+
+| | |
+|---|---|
+| **Pros** | Fastest possible — direct array access, zero overhead, cache-friendly contiguous layout. No allocation. Can be used inside Burst jobs. |
+| **Cons** | Single component only. No automatic multi-component filtering (you must manually check `pool2.Has(id)`). No Entity ID passed to you — you get `pool.entities[i]` yourself. Code is less readable. |
+| **Best for** | Hot inner loops, Burst jobs, performance-critical systems that touch one component type. |
+
+#### 2. Query with Processor Struct
+
+```csharp
+public struct MoveProcessor : IProcessor<PositionComponent, VelocityComponent>
+{
+    public float Dt;
+    public void Execute(Entity e, ref PositionComponent pos, ref VelocityComponent vel)
+    {
+        pos.Value += vel.Value * Dt;
+    }
+}
+
+EntityManager.Query<PositionComponent, VelocityComponent>()
+    .ForEach(new MoveProcessor { Dt = Time.deltaTime });
+```
+
+| | |
+|---|---|
+| **Pros** | Zero-alloc (struct on stack). Type-safe multi-component access. Readable — logic lives in a named struct. Processor can carry parameters (e.g. `Dt`, `Speed`). All components passed as `ref` — directly writable. Supports `.None<T>()` filter. |
+| **Cons** | One struct definition per unique query pattern (boilerplate). First component (T1) is iterated by array index; secondary components (T2..T7) are looked up by dictionary per entity — slightly slower than direct pool access for the secondary components. Not compatible with Burst (struct must be unmanaged but the query dispatch is managed). |
+| **Best for** | Most game logic systems — the standard approach. Clean, maintainable, good performance. |
+
+#### 3. Query with Foreach Enumerator
+
+```csharp
+foreach (var (entity, pos, vel) in EntityManager.Query<PositionComponent, VelocityComponent>().ForEach())
+{
+    pos.Value += vel.Value * Time.deltaTime;
+}
+```
+
+| | |
+|---|---|
+| **Pros** | Most readable — looks like a normal foreach loop. No struct definition needed. Multi-component. Gets Entity ID automatically. Supports `.None<T>()` filter. |
+| **Cons** | Enumerator is a struct (no heap alloc) but involves more virtual dispatch overhead than Processor. Secondary components still use dictionary lookup. Slightly slower than Processor approach due to tuple construction per iteration. Not Burst-compatible (enumerator uses managed types internally when `ValueRW` is involved). |
+| **Best for** | Prototyping, one-off logic, quick iterations where readability matters more than peak performance. |
+
+#### 4. Direct Pool + Manual Multi-Component Check
+
+```csharp
+var posPool = EntityManager.Pool<PositionComponent>();
+var velPool = EntityManager.Pool<VelocityComponent>();
+
+for (int i = 0; i < posPool.entities.Count; i++)
+{
+    int id = posPool.entities[i];
+    if (!velPool.Has(id)) continue;
+
+    ref var pos = ref posPool.components[i];
+    ref var vel = ref velPool.components[velPool.lookup[id]];
+    pos.Value += vel.Value * Time.deltaTime;
+}
+```
+
+| | |
+|---|---|
+| **Pros** | Fastest multi-component approach — direct array access for all components. No Processor struct needed. Can be used in Burst jobs. Full control over iteration order. |
+| **Cons** | Verbose — manual pool lookups, manual `Has` checks. Must keep pool references in sync. Easy to make bugs (wrong pool, wrong lookup). T1 iterates cleanly; T2..T7 require dictionary lookup per entity. |
+| **Best for** | Performance-critical systems with Burst jobs that need multi-component access, or when Processor boilerplate is not worth it for simple one-off logic. |
+
+#### Summary Table
+
+| Approach | Alloc | Multi-Component | Mutable | Burst | Readability | Performance |
+|----------|-------|-----------------|---------|-------|-------------|-------------|
+| `Pool<T>()` direct | Zero | Manual | Yes | Yes | Low | **Fastest** |
+| Query + Processor | Zero | Yes (up to 7) | Yes (ref) | No | High | Fast |
+| Query + foreach | Zero | Yes (up to 7) | Yes | No | **Highest** | Good |
+| Pool + manual check | Zero | Manual | Yes | Yes | Low | Very Fast |
+
+**Rule of thumb**: Start with **Query + Processor** for most systems. Drop to **Pool\<T\>() direct** for hot paths. Use **foreach** for prototyping.
+
 ---
 
 ## System Types
