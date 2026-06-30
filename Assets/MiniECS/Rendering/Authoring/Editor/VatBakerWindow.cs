@@ -552,14 +552,13 @@ namespace MiniECS.Rendering.Authoring.Editor
             posTex.Apply(false, true);
             normTex.Apply(false, true);
 
+            // ── Extract original material BEFORE destroying temp ──
+            var srcMat = skinnedMR.sharedMaterial;
+
             DestroyImmediate(tempGO);
             if (bakedMesh != null) DestroyImmediate(bakedMesh);
 
-            string assetPath = Path.Combine(outputRoot, name + "_VAT.asset");
-            var existing = AssetDatabase.LoadMainAssetAtPath(assetPath);
-            if (existing != null)
-                AssetDatabase.DeleteAsset(assetPath);
-
+            // ── Create VAT data ──
             var vatData = ScriptableObject.CreateInstance<VatAnimationData>();
             vatData.name = name + "_VAT";
             vatData.positionTexture = posTex;
@@ -569,7 +568,13 @@ namespace MiniECS.Rendering.Authoring.Editor
             vatData.vertexCount = vertexCount;
             vatData.totalFrames = totalFrames;
 
-            var shader = Shader.Find("Custom/VatInstancing");
+            ExtractMaterialProperties(srcMat, vatData);
+
+            // ── Create VAT PBR material ──
+            var shader = Shader.Find("Custom/VatPBR");
+            if (shader == null)
+                shader = Shader.Find("Custom/VatInstancing");
+
             Material mat;
             if (shader != null)
             {
@@ -580,15 +585,29 @@ namespace MiniECS.Rendering.Authoring.Editor
                 mat.SetTexture("_NormalVAT", normTex);
                 mat.SetFloat("_VATWidth", vertexCount);
                 mat.SetFloat("_VATHeight", totalFrames);
-                mat.SetColor("_Color", Color.white);
+
+                if (shader == Shader.Find("Custom/VatPBR"))
+                {
+                    ApplyMaterialToVatPBR(srcMat, mat, vatData);
+                }
+                else
+                {
+                    mat.SetColor("_Color", vatData.albedoTint);
+                }
             }
             else
             {
-                Debug.LogError("[VatBaker] Custom/VatInstancing shader not found!");
+                Debug.LogError("[VatBaker] Neither Custom/VatPBR nor Custom/VatInstancing shader found!");
                 mat = new Material(Shader.Find("Standard"));
             }
 
             vatData.animationMaterial = mat;
+
+            // ── Save assets ──
+            string assetPath = Path.Combine(outputRoot, name + "_VAT.asset");
+            var existing = AssetDatabase.LoadMainAssetAtPath(assetPath);
+            if (existing != null)
+                AssetDatabase.DeleteAsset(assetPath);
 
             AssetDatabase.CreateAsset(vatData, assetPath);
             AssetDatabase.AddObjectToAsset(posTex, vatData);
@@ -596,7 +615,84 @@ namespace MiniECS.Rendering.Authoring.Editor
             AssetDatabase.AddObjectToAsset(mat, vatData);
             AssetDatabase.AddObjectToAsset(bakedReferenceMesh, vatData);
 
+            SaveTextureSubAsset(vatData, vatData.albedoTexture, name + "_Albedo");
+            SaveTextureSubAsset(vatData, vatData.normalMapTexture, name + "_NormalMap");
+            SaveTextureSubAsset(vatData, vatData.metallicTexture, name + "_Metallic");
+            SaveTextureSubAsset(vatData, vatData.emissionTexture, name + "_Emission");
+            SaveTextureSubAsset(vatData, vatData.occlusionTexture, name + "_Occlusion");
+
             return true;
+        }
+
+        static void ExtractMaterialProperties(Material src, VatAnimationData vatData)
+        {
+            if (src == null) return;
+
+            if (src.HasProperty("_MainTex"))
+                vatData.albedoTexture = src.GetTexture("_MainTex") as Texture2D;
+            if (src.HasProperty("_BumpMap"))
+                vatData.normalMapTexture = src.GetTexture("_BumpMap") as Texture2D;
+            if (src.HasProperty("_MetallicGlossMap"))
+                vatData.metallicTexture = src.GetTexture("_MetallicGlossMap") as Texture2D;
+            if (src.HasProperty("_EmissionMap"))
+                vatData.emissionTexture = src.GetTexture("_EmissionMap") as Texture2D;
+            if (src.HasProperty("_OcclusionMap"))
+                vatData.occlusionTexture = src.GetTexture("_OcclusionMap") as Texture2D;
+
+            if (src.HasProperty("_Color"))
+                vatData.albedoTint = src.GetColor("_Color");
+            if (src.HasProperty("_EmissionColor"))
+                vatData.emissionColor = src.GetColor("_EmissionColor");
+            if (src.HasProperty("_Metallic"))
+                vatData.metallic = src.GetFloat("_Metallic");
+            if (src.HasProperty("_Glossiness"))
+                vatData.smoothness = src.GetFloat("_Glossiness");
+            else if (src.HasProperty("_Smoothness"))
+                vatData.smoothness = src.GetFloat("_Smoothness");
+            if (src.HasProperty("_BumpScale"))
+                vatData.normalScale = src.GetFloat("_BumpScale");
+            if (src.HasProperty("_OcclusionStrength"))
+                vatData.occlusionStrength = src.GetFloat("_OcclusionStrength");
+        }
+
+        static void ApplyMaterialToVatPBR(Material src, Material dst, VatAnimationData vatData)
+        {
+            if (vatData.albedoTexture != null)
+                dst.SetTexture("_MainTex", vatData.albedoTexture);
+            if (vatData.normalMapTexture != null)
+                dst.SetTexture("_BumpMap", vatData.normalMapTexture);
+            if (vatData.metallicTexture != null)
+                dst.SetTexture("_MetallicGlossMap", vatData.metallicTexture);
+            if (vatData.emissionTexture != null)
+                dst.SetTexture("_EmissionMap", vatData.emissionTexture);
+            if (vatData.occlusionTexture != null)
+                dst.SetTexture("_OcclusionMap", vatData.occlusionTexture);
+
+            dst.SetColor("_Color", vatData.albedoTint);
+            dst.SetFloat("_Metallic", vatData.metallic);
+            dst.SetFloat("_Glossiness", vatData.smoothness);
+            dst.SetFloat("_BumpScale", vatData.normalScale);
+            dst.SetFloat("_OcclusionStrength", vatData.occlusionStrength);
+            dst.SetColor("_EmissionColor", vatData.emissionColor);
+
+            if (src != null)
+            {
+                if (src.HasProperty("_Color"))
+                    dst.SetColor("_Color", src.GetColor("_Color") * vatData.albedoTint);
+            }
+        }
+
+        static void SaveTextureSubAsset(VatAnimationData vatData, Texture2D tex, string subName)
+        {
+            if (tex == null) return;
+            if (tex == vatData.positionTexture || tex == vatData.normalTexture) return;
+
+            string path = AssetDatabase.GetAssetPath(tex);
+            if (!string.IsNullOrEmpty(path))
+                return;
+
+            tex.name = subName;
+            AssetDatabase.AddObjectToAsset(tex, vatData);
         }
 
         void EnsureOutputFolder()

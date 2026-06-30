@@ -59,7 +59,7 @@ namespace MiniECS.Rendering
             }
 
             if (instancingShader == null)
-                instancingShader = Shader.Find("Custom/IndirectInstancing");
+                instancingShader = Shader.Find("Custom/VatPBR") ?? Shader.Find("Custom/IndirectInstancing");
 
             var clone = new Material(instancingShader);
             if (material != null)

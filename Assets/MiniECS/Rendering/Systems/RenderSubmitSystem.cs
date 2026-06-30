@@ -64,6 +64,20 @@ namespace MiniECS.Rendering
             var batch = BatchData.Instance;
             int modelCount = ModelRegistry.Count;
 
+            var mainLight = RenderSettings.sun;
+            Vector3 lightDir;
+            Color lightColor;
+            if (mainLight != null)
+            {
+                lightDir = -mainLight.transform.forward;
+                lightColor = mainLight.color * mainLight.intensity;
+            }
+            else
+            {
+                lightDir = new Vector3(0.5f, 1.0f, 0.3f);
+                lightColor = Color.white;
+            }
+
             for (int id = 0; id < modelCount; id++)
             {
                 int instanceCount = batch.GetCount(id);
@@ -74,6 +88,8 @@ namespace MiniECS.Rendering
                 var material = ModelRegistry.GetMaterial(id);
 
                 mpb.Clear();
+                mpb.SetVector("_CustomLightDir", lightDir);
+                mpb.SetColor("_CustomLightColor", lightColor);
                 batch.UploadAndDraw(id, mesh, material, mpb, argsBuffer, worldBounds);
             }
         }

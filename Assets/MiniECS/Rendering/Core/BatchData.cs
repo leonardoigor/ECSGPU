@@ -53,7 +53,7 @@ namespace MiniECS.Rendering
             buf?.Release();
             perModelBuffers[modelId] = new ComputeBuffer(
                 Mathf.NextPowerOfTwo(needed),
-                sizeof(float) * 20
+                sizeof(float) * 24
             );
 
             var matBuf = perModelMatrixBuffers[modelId];
@@ -140,7 +140,7 @@ namespace MiniECS.Rendering
             }
 
             var cmd = new CommandBuffer { name = "VAT Draw" };
-            cmd.DrawMeshInstancedIndirect(mesh, 0, material, -1, argsBuffer, 0, mpb);
+            cmd.DrawMeshInstancedIndirect(mesh, 0, material, 0, argsBuffer, 0, mpb);
             Graphics.ExecuteCommandBuffer(cmd);
             cmd.Release();
         }

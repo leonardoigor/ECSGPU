@@ -3,7 +3,6 @@ Shader "Custom/VatInstancing"
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
-        _Color ("Color", Color) = (1,1,1,1)
         _PositionVAT ("Position VAT", 2D) = "white" {}
         _NormalVAT ("Normal VAT", 2D) = "white" {}
         _VATWidth ("VAT Width", Float) = 1
@@ -35,11 +34,11 @@ Shader "Custom/VatInstancing"
                 float2 uv : TEXCOORD0;
                 float4 vertex : SV_POSITION;
                 float3 worldNormal : TEXCOORD1;
+                float4 color : COLOR0;
             };
 
             sampler2D _MainTex;
             float4 _MainTex_ST;
-            float4 _Color;
 
             sampler2D _PositionVAT;
             sampler2D _NormalVAT;
@@ -50,6 +49,7 @@ Shader "Custom/VatInstancing"
             {
                 float4x4 transformMatrix;
                 float4 animData;
+                float4 color;
             };
 
             StructuredBuffer<InstanceData> _InstanceBuffer;
@@ -88,6 +88,7 @@ Shader "Custom/VatInstancing"
                 o.vertex = mul(UNITY_MATRIX_VP, float4(worldPos, 1));
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 o.worldNormal = mul((float3x3)inst.transformMatrix, finalNorm);
+                o.color = inst.color;
 
                 return o;
             }
@@ -96,7 +97,7 @@ Shader "Custom/VatInstancing"
             {
                 float3 lightDir = normalize(float3(0.5, 1.0, 0.3));
                 float ndotl = max(0, dot(normalize(i.worldNormal), lightDir));
-                return tex2D(_MainTex, i.uv) * _Color * (ndotl * 0.7 + 0.3);
+                return tex2D(_MainTex, i.uv) * i.color * (ndotl * 0.7 + 0.3);
             }
             ENDCG
         }

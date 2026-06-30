@@ -20,6 +20,10 @@ public class VatGpuRenderSpawner : MonoBehaviour
     [Header("Mode")]
     public bool flipFlop = true;
 
+    [Header("Color")]
+    public bool randomColors = true;
+    public Color[] modelColors = new Color[] { Color.white };
+
     int[] entities;
     int[] animCounts;
     float[] timers;
@@ -78,6 +82,14 @@ public class VatGpuRenderSpawner : MonoBehaviour
                 FrameRate = startFrameRate
             });
 
+            Color agentColor = Color.white;
+            if (randomColors)
+                agentColor = Random.ColorHSV(0f, 1f, 0.7f, 1f, 0.5f, 1f);
+            else if (modelColors != null && modelIndex < modelColors.Length)
+                agentColor = modelColors[modelIndex];
+
+            EntityManager.Add(entity, new ColorComponent { Value = agentColor });
+
             entities[i] = entity.Id;
             animCounts[i] = clipCount;
             timers[i] = Random.Range(minInterval, maxInterval);
@@ -89,9 +101,9 @@ public class VatGpuRenderSpawner : MonoBehaviour
             Destroy(this);
     }
 
-    void Update()
-    {
-        if (count == 0) return;
+        void Update()
+        {
+            if (count == 0 || timers == null) return;
 
         float avgInterval = (minInterval + maxInterval) * 0.5f;
         int perFrame = Mathf.Max(1, (int)(count / avgInterval));

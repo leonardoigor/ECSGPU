@@ -13,6 +13,7 @@ namespace MiniECS.Rendering
         [ReadOnly] public NativeArray<Vector3> Positions;
         [ReadOnly] public NativeArray<Quaternion> Rotations;
         [ReadOnly] public NativeArray<Vector4> AnimData;
+        [ReadOnly] public NativeArray<Color> Colors;
         [ReadOnly] public NativeArray<int> Prefix;
         [NativeDisableParallelForRestriction]
         public NativeArray<InstanceData> FlatInstanceData;
@@ -33,7 +34,8 @@ namespace MiniECS.Rendering
                 animIndex = AnimData[index].x,
                 currentFrame = AnimData[index].y,
                 clipStartFrame = AnimData[index].z,
-                clipFrameCount = AnimData[index].w
+                clipFrameCount = AnimData[index].w,
+                color = Colors[index]
             };
         }
     }

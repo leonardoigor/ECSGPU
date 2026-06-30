@@ -289,7 +289,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   vatModels:
   - {fileID: 11400000, guid: a1c94e0499285974ca4d133d0a1aed16, type: 2}
-  - {fileID: 11400000, guid: dc93bf00ec9af5e42b98a1aae4ddb35d, type: 2}
+  - {fileID: 11400000, guid: 8e99d53d3a71d404990b5cd5825bec4e, type: 2}
   count: 20000
   radius: 100
   center: {x: 0, y: 0, z: 0}
@@ -297,6 +297,9 @@ MonoBehaviour:
   minInterval: 1
   maxInterval: 10
   flipFlop: 1
+  randomColors: 1
+  modelColors:
+  - {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &1155341089
 GameObject:
   m_ObjectHideFlags: 0

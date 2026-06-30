@@ -12,10 +12,15 @@ namespace MiniECS.Rendering
         static NativeArray<Vector3> positionCache;
         static NativeArray<Quaternion> rotationCache;
         static NativeArray<Vector4> animCache;
+        static NativeArray<Color> colorCache;
         static NativeArray<InstanceData> flatInstanceData;
         static NativeArray<int> prefix;
         static int modelCount;
         static int validCount;
+
+        static Plane[] frustumPlanes = new Plane[6];
+        static Camera cachedCamera;
+        static float cullingRadius = 2.0f;
 
         public void OnCreate(ref SystemContext ctx) { }
 
@@ -29,6 +34,7 @@ namespace MiniECS.Rendering
             var rotPool = EntityManager.Pool<RotationComponent>();
             var modPool = EntityManager.Pool<ModelIdComponent>();
             var animPool = EntityManager.Pool<AnimationComponent>();
+            var colorPool = EntityManager.Pool<ColorComponent>();
 
             var positions = posPool.components;
             var rotations = rotPool.components;
@@ -38,6 +44,7 @@ namespace MiniECS.Rendering
             var rotLookup = rotPool.lookup;
             var modLookup = modPool.lookup;
             var animLookup = animPool.lookup;
+            var colorLookup = colorPool.lookup;
 
             int count = entities.Count;
             int mc = ModelRegistry.Count;
@@ -47,6 +54,11 @@ namespace MiniECS.Rendering
             var batch = BatchData.Instance;
             batch.EnsureModelCapacity(mc);
             batch.ClearCounts(mc);
+
+            if (cachedCamera == null)
+                cachedCamera = Camera.main;
+            if (cachedCamera != null)
+                GeometryUtility.CalculateFrustumPlanes(cachedCamera, frustumPlanes);
 
             int[] tempModelIds = new int[count];
             int[] validIndices = new int[count];
@@ -60,6 +72,18 @@ namespace MiniECS.Rendering
                     int modelId = modelIds[modIdx].Value;
                     if (modelId >= 0 && modelId < mc)
                     {
+                        Vector3 pos = positions[i].Value;
+                        bool visible = true;
+                        for (int p = 0; p < 6; p++)
+                        {
+                            if (frustumPlanes[p].GetDistanceToPoint(pos) < -cullingRadius)
+                            {
+                                visible = false;
+                                break;
+                            }
+                        }
+                        if (!visible) continue;
+
                         batch.GetCount(modelId)++;
                         validIndices[validCount] = i;
                         tempModelIds[validCount] = modelId;
@@ -98,6 +122,7 @@ namespace MiniECS.Rendering
             Vector3[] posArr = new Vector3[validCount];
             Quaternion[] rotArr = new Quaternion[validCount];
             Vector4[] animArr = new Vector4[validCount];
+            Color[] colorArr = new Color[validCount];
 
             for (int i = 0; i < validCount; i++)
             {
@@ -105,6 +130,12 @@ namespace MiniECS.Rendering
                 int id = entities[poolIdx];
                 posArr[i] = positions[poolIdx].Value;
                 rotArr[i] = rotations[rotLookup[id]].Value;
+
+                if (colorLookup.TryGetValue(id, out int colorIdx))
+                    colorArr[i] = colorPool.components[colorIdx].Value;
+                else
+                    colorArr[i] = Color.white;
+
                 if (animLookup.TryGetValue(id, out int animIdx))
                 {
                     var anim = anims[animIdx];
@@ -132,6 +163,7 @@ namespace MiniECS.Rendering
             positionCache = new NativeArray<Vector3>(posArr, Allocator.TempJob);
             rotationCache = new NativeArray<Quaternion>(rotArr, Allocator.TempJob);
             animCache = new NativeArray<Vector4>(animArr, Allocator.TempJob);
+            colorCache = new NativeArray<Color>(colorArr, Allocator.TempJob);
             flatInstanceData = new NativeArray<InstanceData>(validCount, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             prefix = new NativeArray<int>(prefixArr, Allocator.TempJob);
             modelCount = mc;
@@ -150,6 +182,7 @@ namespace MiniECS.Rendering
                 Positions = positionCache,
                 Rotations = rotationCache,
                 AnimData = animCache,
+                Colors = colorCache,
                 Prefix = prefix,
                 FlatInstanceData = flatInstanceData
             };
@@ -184,6 +217,7 @@ namespace MiniECS.Rendering
             if (positionCache.IsCreated) positionCache.Dispose();
             if (rotationCache.IsCreated) rotationCache.Dispose();
             if (animCache.IsCreated) animCache.Dispose();
+            if (colorCache.IsCreated) colorCache.Dispose();
             if (flatInstanceData.IsCreated) flatInstanceData.Dispose();
             if (prefix.IsCreated) prefix.Dispose();
         }

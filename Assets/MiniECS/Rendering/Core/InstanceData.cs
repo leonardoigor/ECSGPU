@@ -9,5 +9,6 @@ namespace MiniECS.Rendering
         public float currentFrame;
         public float clipStartFrame;
         public float clipFrameCount;
+        public Color color;
     }
 }
