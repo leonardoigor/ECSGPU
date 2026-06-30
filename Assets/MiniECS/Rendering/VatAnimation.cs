@@ -12,9 +12,9 @@ namespace MiniECS.Rendering
             anim.Speed = speed;
 
             var modelPool = EntityManager.Pool<ModelIdComponent>();
-            if (modelPool.lookup.TryGetValue(entity, out int modelIdx))
+            if (modelPool.Has(entity))
             {
-                var vatData = ModelRegistry.GetVatData(modelPool.components[modelIdx].Value);
+                var vatData = ModelRegistry.GetVatData(modelPool.components[modelPool.GetIndex(entity)].Value);
                 if (vatData != null && vatData.clips != null && vatData.clips.Length > 0)
                 {
                     int clipIndex = UnityEngine.Mathf.Clamp(animIndex, 0, vatData.clips.Length - 1);

@@ -121,10 +121,12 @@ public class VatGpuRenderSpawner : MonoBehaviour
                 {
                     var modelPool = EntityManager.Pool<ModelIdComponent>();
                     var pool = EntityManager.Pool<AnimationComponent>();
-                    if (!pool.lookup.TryGetValue(entities[idx], out int animIdx) ||
-                        !modelPool.lookup.TryGetValue(entities[idx], out int modelIdx))
+                    int entId = entities[idx];
+                    if (!pool.Has(entId) || !modelPool.Has(entId))
                         continue;
 
+                    int animIdx = pool.GetIndex(entId);
+                    int modelIdx = modelPool.GetIndex(entId);
                     int modelId = modelPool.components[modelIdx].Value;
                     var vatData = ModelRegistry.GetVatData(modelId);
                     ref var anim = ref pool.components[animIdx];

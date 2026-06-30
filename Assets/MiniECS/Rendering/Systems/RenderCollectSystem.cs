@@ -42,10 +42,6 @@ namespace MiniECS.Rendering
             var modelIds = modPool.components;
             var anims = animPool.components;
             var entities = posPool.entities;
-            var rotLookup = rotPool.lookup;
-            var modLookup = modPool.lookup;
-            var animLookup = animPool.lookup;
-            var colorLookup = colorPool.lookup;
 
             int count = entities.Count;
             int mc = ModelRegistry.Count;
@@ -73,8 +69,9 @@ namespace MiniECS.Rendering
             for (int i = 0; i < count; i++)
             {
                 int id = entities[i];
-                if (rotLookup.TryGetValue(id, out _) && modLookup.TryGetValue(id, out int modIdx))
+                if (rotPool.Has(id) && modPool.Has(id))
                 {
+                    int modIdx = modPool.GetIndex(id);
                     int baseModelId = modelIds[modIdx].Value;
                     if (baseModelId >= 0 && baseModelId < mc)
                     {
@@ -95,8 +92,9 @@ namespace MiniECS.Rendering
                         int finalModelId = baseModelId;
                         float rawAnimFrame = 0f;
 
-                        if (animLookup.TryGetValue(id, out int animIdx))
+                        if (animPool.Has(id))
                         {
+                            int animIdx = animPool.GetIndex(id);
                             var anim = anims[animIdx];
                             float frameRate = anim.FrameRate > 0f ? anim.FrameRate : 30f;
                             rawAnimFrame = anim.CurrentFrame;
@@ -176,15 +174,19 @@ namespace MiniECS.Rendering
                 float rawAnimFrame = tempAnimFrames[i];
 
                 posArr[i] = positions[poolIdx].Value;
-                rotArr[i] = rotations[rotLookup[id]].Value;
+                rotArr[i] = rotations[rotPool.GetIndex(id)].Value;
 
-                if (colorLookup.TryGetValue(id, out int colorIdx))
+                if (colorPool.Has(id))
+                {
+                    int colorIdx = colorPool.GetIndex(id);
                     colorArr[i] = colorPool.components[colorIdx].Value;
+                }
                 else
                     colorArr[i] = Color.white;
 
-                if (animLookup.TryGetValue(id, out int animIdx))
+                if (animPool.Has(id))
                 {
+                    int animIdx = animPool.GetIndex(id);
                     var anim = anims[animIdx];
                     float clipStart = 0f;
                     float clipFrameCount = anim.FrameCount;

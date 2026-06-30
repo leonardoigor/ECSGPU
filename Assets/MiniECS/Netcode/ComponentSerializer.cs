@@ -124,7 +124,7 @@ namespace MiniECS.Netcode
                 if (!_typeToIndex.ContainsKey(type)) continue;
                 if (!kvp.Value.Has(entityId)) continue;
 
-                int idx = kvp.Value.GetLookup()[entityId];
+                int idx = kvp.Value.GetIndex(entityId);
                 object val = kvp.Value.GetComponents().GetValue(idx);
                 result.Add((type, val));
             }

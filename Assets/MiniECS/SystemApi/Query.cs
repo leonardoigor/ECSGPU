@@ -149,7 +149,6 @@ namespace MiniECS
             Func<Array, int, T2> create2;
             bool isRw2;
             IComponentPool p2;
-            Dictionary<int, int> lookup2;
 
             public Enumerator(Query<T1, T2> q)
             {
@@ -181,7 +180,6 @@ namespace MiniECS
                     isRw2 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T2>.InnerType);
                     p2 = pool;
-                    lookup2 = pool.GetLookup();
                     s2Rw = pool.GetComponents();
                     create2 = QueryHelper<T2>.Create;
                     s2 = null;
@@ -191,7 +189,6 @@ namespace MiniECS
                     isRw2 = false;
                     var pool = EntityManager.Pool<T2>();
                     p2 = pool;
-                    lookup2 = pool.lookup;
                     s2 = pool.components;
                     s2Rw = null;
                     create2 = null;
@@ -217,9 +214,9 @@ namespace MiniECS
                 get
                 {
                     int id = entities[index];
-                    return (new Entity(id), 
+                    return (new Entity(id),
                         isRw1 ? create1(s1Rw, index) : s1[index],
-                        isRw2 ? create2(s2Rw, lookup2[id]) : s2[lookup2[id]]);
+                        isRw2 ? create2(s2Rw, p2.GetIndex(id)) : s2[p2.GetIndex(id)]);
                 }
             }
         }
@@ -280,14 +277,11 @@ namespace MiniECS
             Func<Array, int, T2> create2;
             bool isRw2;
             IComponentPool p2;
-            Dictionary<int, int> lookup2;
             T3[] s3;
             Array s3Rw;
             Func<Array, int, T3> create3;
             bool isRw3;
             IComponentPool p3;
-            Dictionary<int, int> lookup3;
-            
 
             public Enumerator(Query<T1, T2, T3> q)
             {
@@ -312,12 +306,10 @@ namespace MiniECS
                 }
                 count = entities.Count;
 
-                
                 if (QueryHelper<T2>.IsValueRW) {
                     isRw2 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T2>.InnerType);
                     p2 = pool;
-                    lookup2 = pool.GetLookup();
                     s2Rw = pool.GetComponents();
                     create2 = QueryHelper<T2>.Create;
                     s2 = null;
@@ -325,17 +317,15 @@ namespace MiniECS
                     isRw2 = false;
                     var pool = EntityManager.Pool<T2>();
                     p2 = pool;
-                    lookup2 = pool.lookup;
                     s2 = pool.components;
                     s2Rw = null;
                     create2 = null;
                 }
-        
+
                 if (QueryHelper<T3>.IsValueRW) {
                     isRw3 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T3>.InnerType);
                     p3 = pool;
-                    lookup3 = pool.GetLookup();
                     s3Rw = pool.GetComponents();
                     create3 = QueryHelper<T3>.Create;
                     s3 = null;
@@ -343,12 +333,10 @@ namespace MiniECS
                     isRw3 = false;
                     var pool = EntityManager.Pool<T3>();
                     p3 = pool;
-                    lookup3 = pool.lookup;
                     s3 = pool.components;
                     s3Rw = null;
                     create3 = null;
                 }
-        
             }
 
             public Enumerator GetEnumerator() => this;
@@ -371,10 +359,10 @@ namespace MiniECS
                 get
                 {
                     int id = entities[index];
-                    return (new Entity(id), 
+                    return (new Entity(id),
                         isRw1 ? create1(s1Rw, index) : s1[index],
-                        isRw2 ? create2(s2Rw, lookup2[id]) : s2[lookup2[id]],
-                        isRw3 ? create3(s3Rw, lookup3[id]) : s3[lookup3[id]]);
+                        isRw2 ? create2(s2Rw, p2.GetIndex(id)) : s2[p2.GetIndex(id)],
+                        isRw3 ? create3(s3Rw, p3.GetIndex(id)) : s3[p3.GetIndex(id)]);
                 }
             }
         }
@@ -438,20 +426,16 @@ namespace MiniECS
             Func<Array, int, T2> create2;
             bool isRw2;
             IComponentPool p2;
-            Dictionary<int, int> lookup2;
             T3[] s3;
             Array s3Rw;
             Func<Array, int, T3> create3;
             bool isRw3;
             IComponentPool p3;
-            Dictionary<int, int> lookup3;
             T4[] s4;
             Array s4Rw;
             Func<Array, int, T4> create4;
             bool isRw4;
             IComponentPool p4;
-            Dictionary<int, int> lookup4;
-            
 
             public Enumerator(Query<T1, T2, T3, T4> q)
             {
@@ -476,12 +460,10 @@ namespace MiniECS
                 }
                 count = entities.Count;
 
-                
                 if (QueryHelper<T2>.IsValueRW) {
                     isRw2 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T2>.InnerType);
                     p2 = pool;
-                    lookup2 = pool.GetLookup();
                     s2Rw = pool.GetComponents();
                     create2 = QueryHelper<T2>.Create;
                     s2 = null;
@@ -489,17 +471,15 @@ namespace MiniECS
                     isRw2 = false;
                     var pool = EntityManager.Pool<T2>();
                     p2 = pool;
-                    lookup2 = pool.lookup;
                     s2 = pool.components;
                     s2Rw = null;
                     create2 = null;
                 }
-        
+
                 if (QueryHelper<T3>.IsValueRW) {
                     isRw3 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T3>.InnerType);
                     p3 = pool;
-                    lookup3 = pool.GetLookup();
                     s3Rw = pool.GetComponents();
                     create3 = QueryHelper<T3>.Create;
                     s3 = null;
@@ -507,17 +487,15 @@ namespace MiniECS
                     isRw3 = false;
                     var pool = EntityManager.Pool<T3>();
                     p3 = pool;
-                    lookup3 = pool.lookup;
                     s3 = pool.components;
                     s3Rw = null;
                     create3 = null;
                 }
-        
+
                 if (QueryHelper<T4>.IsValueRW) {
                     isRw4 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T4>.InnerType);
                     p4 = pool;
-                    lookup4 = pool.GetLookup();
                     s4Rw = pool.GetComponents();
                     create4 = QueryHelper<T4>.Create;
                     s4 = null;
@@ -525,12 +503,10 @@ namespace MiniECS
                     isRw4 = false;
                     var pool = EntityManager.Pool<T4>();
                     p4 = pool;
-                    lookup4 = pool.lookup;
                     s4 = pool.components;
                     s4Rw = null;
                     create4 = null;
                 }
-        
             }
 
             public Enumerator GetEnumerator() => this;
@@ -554,11 +530,11 @@ namespace MiniECS
                 get
                 {
                     int id = entities[index];
-                    return (new Entity(id), 
+                    return (new Entity(id),
                         isRw1 ? create1(s1Rw, index) : s1[index],
-                        isRw2 ? create2(s2Rw, lookup2[id]) : s2[lookup2[id]],
-                        isRw3 ? create3(s3Rw, lookup3[id]) : s3[lookup3[id]],
-                        isRw4 ? create4(s4Rw, lookup4[id]) : s4[lookup4[id]]);
+                        isRw2 ? create2(s2Rw, p2.GetIndex(id)) : s2[p2.GetIndex(id)],
+                        isRw3 ? create3(s3Rw, p3.GetIndex(id)) : s3[p3.GetIndex(id)],
+                        isRw4 ? create4(s4Rw, p4.GetIndex(id)) : s4[p4.GetIndex(id)]);
                 }
             }
         }
@@ -625,26 +601,21 @@ namespace MiniECS
             Func<Array, int, T2> create2;
             bool isRw2;
             IComponentPool p2;
-            Dictionary<int, int> lookup2;
             T3[] s3;
             Array s3Rw;
             Func<Array, int, T3> create3;
             bool isRw3;
             IComponentPool p3;
-            Dictionary<int, int> lookup3;
             T4[] s4;
             Array s4Rw;
             Func<Array, int, T4> create4;
             bool isRw4;
             IComponentPool p4;
-            Dictionary<int, int> lookup4;
             T5[] s5;
             Array s5Rw;
             Func<Array, int, T5> create5;
             bool isRw5;
             IComponentPool p5;
-            Dictionary<int, int> lookup5;
-            
 
             public Enumerator(Query<T1, T2, T3, T4, T5> q)
             {
@@ -669,12 +640,10 @@ namespace MiniECS
                 }
                 count = entities.Count;
 
-                
                 if (QueryHelper<T2>.IsValueRW) {
                     isRw2 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T2>.InnerType);
                     p2 = pool;
-                    lookup2 = pool.GetLookup();
                     s2Rw = pool.GetComponents();
                     create2 = QueryHelper<T2>.Create;
                     s2 = null;
@@ -682,17 +651,15 @@ namespace MiniECS
                     isRw2 = false;
                     var pool = EntityManager.Pool<T2>();
                     p2 = pool;
-                    lookup2 = pool.lookup;
                     s2 = pool.components;
                     s2Rw = null;
                     create2 = null;
                 }
-        
+
                 if (QueryHelper<T3>.IsValueRW) {
                     isRw3 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T3>.InnerType);
                     p3 = pool;
-                    lookup3 = pool.GetLookup();
                     s3Rw = pool.GetComponents();
                     create3 = QueryHelper<T3>.Create;
                     s3 = null;
@@ -700,17 +667,15 @@ namespace MiniECS
                     isRw3 = false;
                     var pool = EntityManager.Pool<T3>();
                     p3 = pool;
-                    lookup3 = pool.lookup;
                     s3 = pool.components;
                     s3Rw = null;
                     create3 = null;
                 }
-        
+
                 if (QueryHelper<T4>.IsValueRW) {
                     isRw4 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T4>.InnerType);
                     p4 = pool;
-                    lookup4 = pool.GetLookup();
                     s4Rw = pool.GetComponents();
                     create4 = QueryHelper<T4>.Create;
                     s4 = null;
@@ -718,17 +683,15 @@ namespace MiniECS
                     isRw4 = false;
                     var pool = EntityManager.Pool<T4>();
                     p4 = pool;
-                    lookup4 = pool.lookup;
                     s4 = pool.components;
                     s4Rw = null;
                     create4 = null;
                 }
-        
+
                 if (QueryHelper<T5>.IsValueRW) {
                     isRw5 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T5>.InnerType);
                     p5 = pool;
-                    lookup5 = pool.GetLookup();
                     s5Rw = pool.GetComponents();
                     create5 = QueryHelper<T5>.Create;
                     s5 = null;
@@ -736,12 +699,10 @@ namespace MiniECS
                     isRw5 = false;
                     var pool = EntityManager.Pool<T5>();
                     p5 = pool;
-                    lookup5 = pool.lookup;
                     s5 = pool.components;
                     s5Rw = null;
                     create5 = null;
                 }
-        
             }
 
             public Enumerator GetEnumerator() => this;
@@ -766,12 +727,12 @@ namespace MiniECS
                 get
                 {
                     int id = entities[index];
-                    return (new Entity(id), 
+                    return (new Entity(id),
                         isRw1 ? create1(s1Rw, index) : s1[index],
-                        isRw2 ? create2(s2Rw, lookup2[id]) : s2[lookup2[id]],
-                        isRw3 ? create3(s3Rw, lookup3[id]) : s3[lookup3[id]],
-                        isRw4 ? create4(s4Rw, lookup4[id]) : s4[lookup4[id]],
-                        isRw5 ? create5(s5Rw, lookup5[id]) : s5[lookup5[id]]);
+                        isRw2 ? create2(s2Rw, p2.GetIndex(id)) : s2[p2.GetIndex(id)],
+                        isRw3 ? create3(s3Rw, p3.GetIndex(id)) : s3[p3.GetIndex(id)],
+                        isRw4 ? create4(s4Rw, p4.GetIndex(id)) : s4[p4.GetIndex(id)],
+                        isRw5 ? create5(s5Rw, p5.GetIndex(id)) : s5[p5.GetIndex(id)]);
                 }
             }
         }
@@ -841,32 +802,26 @@ namespace MiniECS
             Func<Array, int, T2> create2;
             bool isRw2;
             IComponentPool p2;
-            Dictionary<int, int> lookup2;
             T3[] s3;
             Array s3Rw;
             Func<Array, int, T3> create3;
             bool isRw3;
             IComponentPool p3;
-            Dictionary<int, int> lookup3;
             T4[] s4;
             Array s4Rw;
             Func<Array, int, T4> create4;
             bool isRw4;
             IComponentPool p4;
-            Dictionary<int, int> lookup4;
             T5[] s5;
             Array s5Rw;
             Func<Array, int, T5> create5;
             bool isRw5;
             IComponentPool p5;
-            Dictionary<int, int> lookup5;
             T6[] s6;
             Array s6Rw;
             Func<Array, int, T6> create6;
             bool isRw6;
             IComponentPool p6;
-            Dictionary<int, int> lookup6;
-            
 
             public Enumerator(Query<T1, T2, T3, T4, T5, T6> q)
             {
@@ -891,12 +846,10 @@ namespace MiniECS
                 }
                 count = entities.Count;
 
-                
                 if (QueryHelper<T2>.IsValueRW) {
                     isRw2 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T2>.InnerType);
                     p2 = pool;
-                    lookup2 = pool.GetLookup();
                     s2Rw = pool.GetComponents();
                     create2 = QueryHelper<T2>.Create;
                     s2 = null;
@@ -904,17 +857,15 @@ namespace MiniECS
                     isRw2 = false;
                     var pool = EntityManager.Pool<T2>();
                     p2 = pool;
-                    lookup2 = pool.lookup;
                     s2 = pool.components;
                     s2Rw = null;
                     create2 = null;
                 }
-        
+
                 if (QueryHelper<T3>.IsValueRW) {
                     isRw3 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T3>.InnerType);
                     p3 = pool;
-                    lookup3 = pool.GetLookup();
                     s3Rw = pool.GetComponents();
                     create3 = QueryHelper<T3>.Create;
                     s3 = null;
@@ -922,17 +873,15 @@ namespace MiniECS
                     isRw3 = false;
                     var pool = EntityManager.Pool<T3>();
                     p3 = pool;
-                    lookup3 = pool.lookup;
                     s3 = pool.components;
                     s3Rw = null;
                     create3 = null;
                 }
-        
+
                 if (QueryHelper<T4>.IsValueRW) {
                     isRw4 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T4>.InnerType);
                     p4 = pool;
-                    lookup4 = pool.GetLookup();
                     s4Rw = pool.GetComponents();
                     create4 = QueryHelper<T4>.Create;
                     s4 = null;
@@ -940,17 +889,15 @@ namespace MiniECS
                     isRw4 = false;
                     var pool = EntityManager.Pool<T4>();
                     p4 = pool;
-                    lookup4 = pool.lookup;
                     s4 = pool.components;
                     s4Rw = null;
                     create4 = null;
                 }
-        
+
                 if (QueryHelper<T5>.IsValueRW) {
                     isRw5 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T5>.InnerType);
                     p5 = pool;
-                    lookup5 = pool.GetLookup();
                     s5Rw = pool.GetComponents();
                     create5 = QueryHelper<T5>.Create;
                     s5 = null;
@@ -958,17 +905,15 @@ namespace MiniECS
                     isRw5 = false;
                     var pool = EntityManager.Pool<T5>();
                     p5 = pool;
-                    lookup5 = pool.lookup;
                     s5 = pool.components;
                     s5Rw = null;
                     create5 = null;
                 }
-        
+
                 if (QueryHelper<T6>.IsValueRW) {
                     isRw6 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T6>.InnerType);
                     p6 = pool;
-                    lookup6 = pool.GetLookup();
                     s6Rw = pool.GetComponents();
                     create6 = QueryHelper<T6>.Create;
                     s6 = null;
@@ -976,12 +921,10 @@ namespace MiniECS
                     isRw6 = false;
                     var pool = EntityManager.Pool<T6>();
                     p6 = pool;
-                    lookup6 = pool.lookup;
                     s6 = pool.components;
                     s6Rw = null;
                     create6 = null;
                 }
-        
             }
 
             public Enumerator GetEnumerator() => this;
@@ -1007,13 +950,13 @@ namespace MiniECS
                 get
                 {
                     int id = entities[index];
-                    return (new Entity(id), 
+                    return (new Entity(id),
                         isRw1 ? create1(s1Rw, index) : s1[index],
-                        isRw2 ? create2(s2Rw, lookup2[id]) : s2[lookup2[id]],
-                        isRw3 ? create3(s3Rw, lookup3[id]) : s3[lookup3[id]],
-                        isRw4 ? create4(s4Rw, lookup4[id]) : s4[lookup4[id]],
-                        isRw5 ? create5(s5Rw, lookup5[id]) : s5[lookup5[id]],
-                        isRw6 ? create6(s6Rw, lookup6[id]) : s6[lookup6[id]]);
+                        isRw2 ? create2(s2Rw, p2.GetIndex(id)) : s2[p2.GetIndex(id)],
+                        isRw3 ? create3(s3Rw, p3.GetIndex(id)) : s3[p3.GetIndex(id)],
+                        isRw4 ? create4(s4Rw, p4.GetIndex(id)) : s4[p4.GetIndex(id)],
+                        isRw5 ? create5(s5Rw, p5.GetIndex(id)) : s5[p5.GetIndex(id)],
+                        isRw6 ? create6(s6Rw, p6.GetIndex(id)) : s6[p6.GetIndex(id)]);
                 }
             }
         }
@@ -1086,38 +1029,31 @@ namespace MiniECS
             Func<Array, int, T2> create2;
             bool isRw2;
             IComponentPool p2;
-            Dictionary<int, int> lookup2;
             T3[] s3;
             Array s3Rw;
             Func<Array, int, T3> create3;
             bool isRw3;
             IComponentPool p3;
-            Dictionary<int, int> lookup3;
             T4[] s4;
             Array s4Rw;
             Func<Array, int, T4> create4;
             bool isRw4;
             IComponentPool p4;
-            Dictionary<int, int> lookup4;
             T5[] s5;
             Array s5Rw;
             Func<Array, int, T5> create5;
             bool isRw5;
             IComponentPool p5;
-            Dictionary<int, int> lookup5;
             T6[] s6;
             Array s6Rw;
             Func<Array, int, T6> create6;
             bool isRw6;
             IComponentPool p6;
-            Dictionary<int, int> lookup6;
             T7[] s7;
             Array s7Rw;
             Func<Array, int, T7> create7;
             bool isRw7;
             IComponentPool p7;
-            Dictionary<int, int> lookup7;
-            
 
             public Enumerator(Query<T1, T2, T3, T4, T5, T6, T7> q)
             {
@@ -1142,12 +1078,10 @@ namespace MiniECS
                 }
                 count = entities.Count;
 
-                
                 if (QueryHelper<T2>.IsValueRW) {
                     isRw2 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T2>.InnerType);
                     p2 = pool;
-                    lookup2 = pool.GetLookup();
                     s2Rw = pool.GetComponents();
                     create2 = QueryHelper<T2>.Create;
                     s2 = null;
@@ -1155,17 +1089,15 @@ namespace MiniECS
                     isRw2 = false;
                     var pool = EntityManager.Pool<T2>();
                     p2 = pool;
-                    lookup2 = pool.lookup;
                     s2 = pool.components;
                     s2Rw = null;
                     create2 = null;
                 }
-        
+
                 if (QueryHelper<T3>.IsValueRW) {
                     isRw3 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T3>.InnerType);
                     p3 = pool;
-                    lookup3 = pool.GetLookup();
                     s3Rw = pool.GetComponents();
                     create3 = QueryHelper<T3>.Create;
                     s3 = null;
@@ -1173,17 +1105,15 @@ namespace MiniECS
                     isRw3 = false;
                     var pool = EntityManager.Pool<T3>();
                     p3 = pool;
-                    lookup3 = pool.lookup;
                     s3 = pool.components;
                     s3Rw = null;
                     create3 = null;
                 }
-        
+
                 if (QueryHelper<T4>.IsValueRW) {
                     isRw4 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T4>.InnerType);
                     p4 = pool;
-                    lookup4 = pool.GetLookup();
                     s4Rw = pool.GetComponents();
                     create4 = QueryHelper<T4>.Create;
                     s4 = null;
@@ -1191,17 +1121,15 @@ namespace MiniECS
                     isRw4 = false;
                     var pool = EntityManager.Pool<T4>();
                     p4 = pool;
-                    lookup4 = pool.lookup;
                     s4 = pool.components;
                     s4Rw = null;
                     create4 = null;
                 }
-        
+
                 if (QueryHelper<T5>.IsValueRW) {
                     isRw5 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T5>.InnerType);
                     p5 = pool;
-                    lookup5 = pool.GetLookup();
                     s5Rw = pool.GetComponents();
                     create5 = QueryHelper<T5>.Create;
                     s5 = null;
@@ -1209,17 +1137,15 @@ namespace MiniECS
                     isRw5 = false;
                     var pool = EntityManager.Pool<T5>();
                     p5 = pool;
-                    lookup5 = pool.lookup;
                     s5 = pool.components;
                     s5Rw = null;
                     create5 = null;
                 }
-        
+
                 if (QueryHelper<T6>.IsValueRW) {
                     isRw6 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T6>.InnerType);
                     p6 = pool;
-                    lookup6 = pool.GetLookup();
                     s6Rw = pool.GetComponents();
                     create6 = QueryHelper<T6>.Create;
                     s6 = null;
@@ -1227,17 +1153,15 @@ namespace MiniECS
                     isRw6 = false;
                     var pool = EntityManager.Pool<T6>();
                     p6 = pool;
-                    lookup6 = pool.lookup;
                     s6 = pool.components;
                     s6Rw = null;
                     create6 = null;
                 }
-        
+
                 if (QueryHelper<T7>.IsValueRW) {
                     isRw7 = true;
                     var pool = EntityManager.GetPool(QueryHelper<T7>.InnerType);
                     p7 = pool;
-                    lookup7 = pool.GetLookup();
                     s7Rw = pool.GetComponents();
                     create7 = QueryHelper<T7>.Create;
                     s7 = null;
@@ -1245,12 +1169,10 @@ namespace MiniECS
                     isRw7 = false;
                     var pool = EntityManager.Pool<T7>();
                     p7 = pool;
-                    lookup7 = pool.lookup;
                     s7 = pool.components;
                     s7Rw = null;
                     create7 = null;
                 }
-        
             }
 
             public Enumerator GetEnumerator() => this;
@@ -1277,17 +1199,16 @@ namespace MiniECS
                 get
                 {
                     int id = entities[index];
-                    return (new Entity(id), 
+                    return (new Entity(id),
                         isRw1 ? create1(s1Rw, index) : s1[index],
-                        isRw2 ? create2(s2Rw, lookup2[id]) : s2[lookup2[id]],
-                        isRw3 ? create3(s3Rw, lookup3[id]) : s3[lookup3[id]],
-                        isRw4 ? create4(s4Rw, lookup4[id]) : s4[lookup4[id]],
-                        isRw5 ? create5(s5Rw, lookup5[id]) : s5[lookup5[id]],
-                        isRw6 ? create6(s6Rw, lookup6[id]) : s6[lookup6[id]],
-                        isRw7 ? create7(s7Rw, lookup7[id]) : s7[lookup7[id]]);
+                        isRw2 ? create2(s2Rw, p2.GetIndex(id)) : s2[p2.GetIndex(id)],
+                        isRw3 ? create3(s3Rw, p3.GetIndex(id)) : s3[p3.GetIndex(id)],
+                        isRw4 ? create4(s4Rw, p4.GetIndex(id)) : s4[p4.GetIndex(id)],
+                        isRw5 ? create5(s5Rw, p5.GetIndex(id)) : s5[p5.GetIndex(id)],
+                        isRw6 ? create6(s6Rw, p6.GetIndex(id)) : s6[p6.GetIndex(id)],
+                        isRw7 ? create7(s7Rw, p7.GetIndex(id)) : s7[p7.GetIndex(id)]);
                 }
             }
         }
     }
-
 }

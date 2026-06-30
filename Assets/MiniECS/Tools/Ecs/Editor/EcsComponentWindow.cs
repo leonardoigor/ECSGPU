@@ -361,7 +361,7 @@ namespace MiniECS.Tools.Editor
                     var pool = EntityManager.GetPool(compType);
                     if (pool.Has(entity.Id))
                     {
-                        int poolIdx = pool.GetLookup()[entity.Id];
+                        int poolIdx = pool.GetIndex(entity.Id);
                         object val = pool.GetComponents().GetValue(poolIdx);
                         var fields = typeMeta[compType].Fields;
 

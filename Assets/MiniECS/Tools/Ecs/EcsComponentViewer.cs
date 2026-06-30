@@ -73,10 +73,9 @@ namespace MiniECS.Tools
                 {
                     var pool = kvp.Value;
                     var entities = pool.GetEntities();
-                    var lookup = pool.GetLookup();
                     var compArray = pool.GetComponents();
 
-                    string detail = ShowPoolData(kvp.Key, compArray, entities, lookup, count);
+                    string detail = ShowPoolData(kvp.Key, compArray, entities, count);
                     GUI.Box(new Rect(10, ry, lw - 40, 60), detail);
                     ry += 65;
                 }
@@ -92,8 +91,7 @@ namespace MiniECS.Tools
                 pools.Add(kvp);
         }
 
-        string ShowPoolData(Type type, Array components, List<int> entities,
-            Dictionary<int, int> lookup, int count)
+        string ShowPoolData(Type type, Array components, List<int> entities, int count)
         {
             if (count == 0) return "No entities";
             if (count > 20)

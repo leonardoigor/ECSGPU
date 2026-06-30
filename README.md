@@ -135,9 +135,9 @@ for (int i = 0; i < pool.entities.Count; i++)
 }
 
 // Lookup by entity ID
-if (pool.lookup.TryGetValue(entityId, out int index))
+if (pool.Has(entityId))
 {
-    ref var comp = ref pool.components[index];
+    ref var comp = ref pool.components[pool.GetIndex(entityId)];
 }
 ```
 
@@ -256,7 +256,7 @@ EntityManager.Query<PositionComponent, VelocityComponent>()
 | | |
 |---|---|
 | **Pros** | Zero-alloc (struct on stack). Type-safe multi-component access. Readable — logic lives in a named struct. Processor can carry parameters (e.g. `Dt`, `Speed`). All components passed as `ref` — directly writable. Supports `.None<T>()` filter. |
-| **Cons** | One struct definition per unique query pattern (boilerplate). First component (T1) is iterated by array index; secondary components (T2..T7) are looked up by dictionary per entity — slightly slower than direct pool access for the secondary components. Not compatible with Burst (struct must be unmanaged but the query dispatch is managed). |
+| **Cons** | One struct definition per unique query pattern (boilerplate). First component (T1) is iterated by array index; secondary components (T2..T7) are looked up by sparse array per entity — slightly slower than direct pool access for the secondary components. Not compatible with Burst (struct must be unmanaged but the query dispatch is managed). |
 | **Best for** | Most game logic systems — the standard approach. Clean, maintainable, good performance. |
 
 #### 3. Query with Foreach Enumerator
@@ -271,7 +271,7 @@ foreach (var (entity, pos, vel) in EntityManager.Query<PositionComponent, Veloci
 | | |
 |---|---|
 | **Pros** | Most readable — looks like a normal foreach loop. No struct definition needed. Multi-component. Gets Entity ID automatically. Supports `.None<T>()` filter. |
-| **Cons** | Enumerator is a struct (no heap alloc) but involves more virtual dispatch overhead than Processor. Secondary components still use dictionary lookup. Slightly slower than Processor approach due to tuple construction per iteration. Not Burst-compatible (enumerator uses managed types internally when `ValueRW` is involved). |
+| **Cons** | Enumerator is a struct (no heap alloc) but involves more virtual dispatch overhead than Processor. Secondary components use sparse array lookup (fast, but slightly slower than direct index). Slightly slower than Processor approach due to tuple construction per iteration. Not Burst-compatible (enumerator uses managed types internally when `ValueRW` is involved). |
 | **Best for** | Prototyping, one-off logic, quick iterations where readability matters more than peak performance. |
 
 #### 4. Direct Pool + Manual Multi-Component Check
@@ -286,7 +286,7 @@ for (int i = 0; i < posPool.entities.Count; i++)
     if (!velPool.Has(id)) continue;
 
     ref var pos = ref posPool.components[i];
-    ref var vel = ref velPool.components[velPool.lookup[id]];
+    ref var vel = ref velPool.components[velPool.GetIndex(id)];
     pos.Value += vel.Value * Time.deltaTime;
 }
 ```
@@ -294,7 +294,7 @@ for (int i = 0; i < posPool.entities.Count; i++)
 | | |
 |---|---|
 | **Pros** | Fastest multi-component approach — direct array access for all components. No Processor struct needed. Can be used in Burst jobs. Full control over iteration order. |
-| **Cons** | Verbose — manual pool lookups, manual `Has` checks. Must keep pool references in sync. Easy to make bugs (wrong pool, wrong lookup). T1 iterates cleanly; T2..T7 require dictionary lookup per entity. |
+| **Cons** | Verbose — manual pool lookups, manual `Has` checks. Must keep pool references in sync. Easy to make bugs (wrong pool, wrong lookup). T1 iterates cleanly; T2..T7 require sparse array lookup per entity. |
 | **Best for** | Performance-critical systems with Burst jobs that need multi-component access, or when Processor boilerplate is not worth it for simple one-off logic. |
 
 #### Summary Table
@@ -337,8 +337,8 @@ public struct GravitySystem : ISystem
         for (int i = 0; i < pool.entities.Count; i++)
         {
             int id = pool.entities[i];
-            if (posPool.lookup.TryGetValue(id, out int pi))
-                posPool.components[pi].Value += pool.components[i].Value * ctx.DeltaTime;
+            if (posPool.Has(id))
+                posPool.components[posPool.GetIndex(id)].Value += pool.components[i].Value * ctx.DeltaTime;
         }
     }
 
@@ -756,11 +756,14 @@ public class ClientBootstrap : MonoBehaviour
 |--------|-------------|
 | `entities` | `List<int>` of entity IDs in this pool |
 | `components` | `T[]` contiguous component array |
-| `lookup` | `Dictionary<int, int>` entity ID → array index |
+| `sparse` | `int[]` entity ID → dense index (-1 = absent) |
+| `denseEntity` | `int[]` dense index → entity ID (reverse mapping) |
+| `count` | Number of entities in pool |
 | `Add(id, component)` | Adds or updates component |
 | `Remove(id)` | Removes component (swap-back) |
 | `Get(id)` | Returns `ref T` component |
-| `Has(id)` | Checks existence |
+| `Has(id)` | Checks existence (sparse array bounds check) |
+| `GetIndex(id)` | Returns dense index for manual component access |
 
 ### Query\<T1..T7\>
 

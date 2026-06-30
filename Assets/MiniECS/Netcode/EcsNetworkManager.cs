@@ -168,7 +168,7 @@ namespace MiniECS.Netcode
 
                 if (pool.Has(local.Id))
                 {
-                    int idx = pool.GetLookup()[local.Id];
+                    int idx = pool.GetIndex(local.Id);
                     pool.GetComponents().SetValue(data, idx);
                 }
                 else
