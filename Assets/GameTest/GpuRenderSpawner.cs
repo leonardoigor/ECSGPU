@@ -69,10 +69,9 @@ public class GpuRenderSpawner : MonoBehaviour
 
             if (useVat)
             {
-                int clipCount = (vatModel != null && vatModel.clips != null) ? vatModel.clips.Length : 0;
-                int animIndex = 0;
-                int frameCount = clipCount > 0 ? vatModel.clips[animIndex].frameCount : Mathf.Max(1, vatModel.totalFrames);
-                float fr = clipCount > 0 ? vatModel.clips[animIndex].frameRate : 30f;
+                int animIndex = vatModel.GetValidAnimationIndex(0);
+                int frameCount = vatModel.GetFrameCount(animIndex);
+                float fr = vatModel.GetFrameRate(animIndex);
 
                 EntityManager.Add(entity, new AnimationComponent
                 {
