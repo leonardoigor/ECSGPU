@@ -7,6 +7,8 @@ public class GpuRenderSpawner : MonoBehaviour
     [Header("Model")]
     public Mesh mesh;
     public Material material;
+    public bool useVat;
+    public VatAnimationData vatModel;
 
     [Header("Spawn")]
     public int count = 10000;
@@ -15,25 +17,41 @@ public class GpuRenderSpawner : MonoBehaviour
 
     void Start()
     {
-        if (mesh == null)
-        {
-            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            mesh = cube.GetComponent<MeshFilter>().sharedMesh;
-            Destroy(cube);
-        }
+        int modelId;
 
-        if (material == null)
+        if (useVat)
         {
-            var shader = Shader.Find("Custom/IndirectInstancing");
-            if (shader == null)
+            if (vatModel == null || vatModel.originalMesh == null || vatModel.animationMaterial == null)
             {
-                Debug.LogError("[GpuRenderSpawner] Custom/IndirectInstancing shader not found.");
+                Debug.LogError("[GpuRenderSpawner] VAT model is missing (VatAnimationData/originalMesh/animationMaterial).");
                 return;
             }
-            material = new Material(shader);
-        }
 
-        int modelId = ModelRegistry.Register(mesh, material);
+            vatModel.ComputeSqrDistances();
+            modelId = ModelRegistry.Register(vatModel.originalMesh, vatModel.animationMaterial, vatModel);
+        }
+        else
+        {
+            if (mesh == null)
+            {
+                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                mesh = cube.GetComponent<MeshFilter>().sharedMesh;
+                Destroy(cube);
+            }
+
+            if (material == null)
+            {
+                var shader = Shader.Find("Custom/IndirectInstancing");
+                if (shader == null)
+                {
+                    Debug.LogError("[GpuRenderSpawner] Custom/IndirectInstancing shader not found.");
+                    return;
+                }
+                material = new Material(shader);
+            }
+
+            modelId = ModelRegistry.Register(mesh, material);
+        }
 
         for (int i = 0; i < count; i++)
         {
@@ -48,6 +66,23 @@ public class GpuRenderSpawner : MonoBehaviour
             });
             EntityManager.Add(entity, new ModelIdComponent { Value = modelId });
             EntityManager.Add(entity, new LodComponent { LodModelId = modelId, LodLevel = 1 });
+
+            if (useVat)
+            {
+                int clipCount = (vatModel != null && vatModel.clips != null) ? vatModel.clips.Length : 0;
+                int animIndex = 0;
+                int frameCount = clipCount > 0 ? vatModel.clips[animIndex].frameCount : Mathf.Max(1, vatModel.totalFrames);
+                float fr = clipCount > 0 ? vatModel.clips[animIndex].frameRate : 30f;
+
+                EntityManager.Add(entity, new AnimationComponent
+                {
+                    AnimIndex = animIndex,
+                    CurrentFrame = 0f,
+                    Speed = 1f,
+                    FrameCount = frameCount,
+                    FrameRate = fr
+                });
+            }
         }
 
         Debug.Log($"[GpuRenderSpawner] Spawned {count} entities (modelId={modelId})");

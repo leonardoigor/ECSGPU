@@ -25,6 +25,9 @@ namespace MiniECS
         int _maxEntities;
 
         public readonly bool IsCreated => _buckets.IsCreated;
+        public readonly int MaxEntities => _maxEntities;
+        public readonly int MaxChunks => _maxChunks;
+        public readonly int BucketCount => _buckets.IsCreated ? _buckets.Length : 0;
 
         public static int PackKey(int x, int z) => (x & 0xFFFF) | ((z & 0xFFFF) << 16);
 

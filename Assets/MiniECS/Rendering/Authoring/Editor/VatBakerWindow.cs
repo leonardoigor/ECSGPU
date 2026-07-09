@@ -13,12 +13,15 @@ namespace MiniECS.Rendering.Authoring.Editor
             public string assetPath;
             public string label;
             public SkinnedMeshRenderer skin;
+            public MeshRenderer meshRenderer;
+            public MeshFilter meshFilter;
             public Mesh sharedMesh;
             public int vertexCount;
             public List<AnimationClip> clips = new();
             public bool selected = true;
             public bool baked;
             public bool expanded;
+            public bool isSkinned;
         }
 
         Vector2 scrollPos;
@@ -29,6 +32,7 @@ namespace MiniECS.Rendering.Authoring.Editor
         string scanScope = "Assets";
         bool hasScanned;
         AnimationClip clipToAdd;
+        GameObject manualPrefab;
         float lod2Distance = 20f;
         float lod3Distance = 50f;
         float cullDistance = 100f;
@@ -99,12 +103,24 @@ namespace MiniECS.Rendering.Authoring.Editor
                 hasScanned = false;
             }
             EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Add Selection", GUILayout.Height(24)))
+                AddFromSelection();
+            manualPrefab = EditorGUILayout.ObjectField(manualPrefab, typeof(GameObject), false) as GameObject;
+            GUI.enabled = manualPrefab != null;
+            if (GUILayout.Button("Add Prefab", GUILayout.Width(90), GUILayout.Height(24)))
+                AddFromObject(manualPrefab);
+            GUI.enabled = true;
+            EditorGUILayout.EndHorizontal();
             EditorGUILayout.Space();
 
             if (hasScanned)
             {
-                int withClips = entries.FindAll(e => e.clips.Count > 0).Count;
-                EditorGUILayout.LabelField($"Found {entries.Count} skinned model(s) ({withClips} with animations).");
+                int skinnedCount = entries.FindAll(e => e.isSkinned).Count;
+                int staticCount = entries.Count - skinnedCount;
+                int withClips = entries.FindAll(e => e.isSkinned && e.clips.Count > 0).Count;
+                EditorGUILayout.LabelField($"Found {entries.Count} model(s) ({skinnedCount} skinned, {staticCount} static; {withClips} with animations).");
             }
         }
 
@@ -135,6 +151,11 @@ namespace MiniECS.Rendering.Authoring.Editor
                 {
                     EditorGUILayout.LabelField("OK", GUILayout.Width(24));
                 }
+                else if (!e.isSkinned)
+                {
+                    var infoStyle = new GUIStyle(EditorStyles.label) { normal = { textColor = new Color(0.6f, 0.9f, 1f) } };
+                    EditorGUILayout.LabelField("static", infoStyle, GUILayout.Width(60));
+                }
                 else if (e.clips.Count == 0)
                 {
                     var warnStyle = new GUIStyle(EditorStyles.label) { normal = { textColor = Color.yellow } };
@@ -145,7 +166,7 @@ namespace MiniECS.Rendering.Authoring.Editor
                     EditorGUILayout.LabelField($"{e.clips.Count} clip(s)", GUILayout.Width(60));
                 }
 
-                if (!e.baked && GUILayout.Button("Find Clips", GUILayout.Width(70)))
+                if (!e.baked && e.isSkinned && GUILayout.Button("Find Clips", GUILayout.Width(70)))
                     AutoMatchClips(e);
 
                 EditorGUILayout.EndHorizontal();
@@ -153,7 +174,10 @@ namespace MiniECS.Rendering.Authoring.Editor
                 if (e.expanded)
                 {
                     EditorGUILayout.Space();
-                    DrawClipList(e, i);
+                    if (e.isSkinned)
+                        DrawClipList(e, i);
+                    else
+                        EditorGUILayout.HelpBox("Static mesh VAT (1 frame).", MessageType.Info);
                 }
 
                 EditorGUILayout.EndVertical();
@@ -266,12 +290,69 @@ namespace MiniECS.Rendering.Authoring.Editor
 
             foreach (string path in seenPaths)
             {
-                var go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-                if (go == null) continue;
+                AddFromAssetPath(path);
+            }
 
-                var skin = go.GetComponentInChildren<SkinnedMeshRenderer>();
-                if (skin == null || skin.sharedMesh == null) continue;
+            hasScanned = true;
+            int skinnedCount = entries.FindAll(e => e.isSkinned).Count;
+            int staticCount = entries.Count - skinnedCount;
+            int withClips = entries.FindAll(e => e.isSkinned && e.clips.Count > 0).Count;
+            if (entries.Count == 0)
+                Debug.Log("[VatBaker] No models found in project.");
+            else
+                Debug.Log($"[VatBaker] Found {entries.Count} model(s) ({skinnedCount} skinned, {staticCount} static), {withClips} with animation clips.");
+            Repaint();
+        }
 
+        void AddFromSelection()
+        {
+            foreach (var o in Selection.objects)
+            {
+                if (o is not GameObject go)
+                    continue;
+
+                var assetGo = go;
+                if (!AssetDatabase.Contains(assetGo))
+                    assetGo = PrefabUtility.GetCorrespondingObjectFromSource(go) as GameObject;
+
+                if (assetGo == null || !AssetDatabase.Contains(assetGo))
+                    continue;
+
+                string path = AssetDatabase.GetAssetPath(assetGo);
+                AddFromAssetPath(path);
+            }
+        }
+
+        void AddFromObject(GameObject go)
+        {
+            if (go == null) return;
+
+            var assetGo = go;
+            if (!AssetDatabase.Contains(assetGo))
+                assetGo = PrefabUtility.GetCorrespondingObjectFromSource(go) as GameObject;
+
+            if (assetGo == null || !AssetDatabase.Contains(assetGo))
+                return;
+
+            string path = AssetDatabase.GetAssetPath(assetGo);
+            AddFromAssetPath(path);
+        }
+
+        void AddFromAssetPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            if (entries.Exists(e => e.assetPath == path))
+                return;
+
+            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (go == null)
+                return;
+
+            var skin = go.GetComponentInChildren<SkinnedMeshRenderer>();
+            if (skin != null && skin.sharedMesh != null)
+            {
                 var entry = new AssetEntry
                 {
                     prefab = go,
@@ -280,7 +361,8 @@ namespace MiniECS.Rendering.Authoring.Editor
                     skin = skin,
                     sharedMesh = skin.sharedMesh,
                     vertexCount = skin.sharedMesh.vertexCount,
-                    selected = true
+                    selected = true,
+                    isSkinned = true
                 };
 
                 var clips = CollectClips(go);
@@ -288,17 +370,31 @@ namespace MiniECS.Rendering.Authoring.Editor
                     entry.clips.AddRange(clips);
 
                 AutoMatchClips(entry);
-
                 entries.Add(entry);
+                hasScanned = true;
+                return;
             }
 
-            hasScanned = true;
-            int withClips = entries.FindAll(e => e.clips.Count > 0).Count;
-            if (entries.Count == 0)
-                Debug.Log("[VatBaker] No skinned models found in project.");
-            else
-                Debug.Log($"[VatBaker] Found {entries.Count} skinned model(s), {withClips} with animation clips.");
-            Repaint();
+            var mf = go.GetComponentInChildren<MeshFilter>();
+            var mr = go.GetComponentInChildren<MeshRenderer>();
+            if (mf != null && mr != null && mf.sharedMesh != null)
+            {
+                var entry = new AssetEntry
+                {
+                    prefab = go,
+                    assetPath = path,
+                    label = path,
+                    meshFilter = mf,
+                    meshRenderer = mr,
+                    sharedMesh = mf.sharedMesh,
+                    vertexCount = mf.sharedMesh.vertexCount,
+                    selected = true,
+                    isSkinned = false
+                };
+
+                entries.Add(entry);
+                hasScanned = true;
+            }
         }
 
         static List<AnimationClip> CollectClips(GameObject go)
@@ -387,7 +483,7 @@ namespace MiniECS.Rendering.Authoring.Editor
 
             for (int i = 0; i < toBake.Count; i++)
             {
-                if (toBake[i].clips.Count == 0)
+                if (toBake[i].isSkinned && toBake[i].clips.Count == 0)
                 {
                     if (!EditorUtility.DisplayDialog("Missing Clips",
                         $"{toBake[i].label} has no animation clips.\n\nSkip this model?", "Skip", "Cancel"))
@@ -445,129 +541,226 @@ namespace MiniECS.Rendering.Authoring.Editor
 
             var animator = tempGO.GetComponentInChildren<Animator>();
             var skinnedMR = tempGO.GetComponentInChildren<SkinnedMeshRenderer>();
-            if (skinnedMR == null)
+            var meshFilter = tempGO.GetComponentInChildren<MeshFilter>();
+            var meshRenderer = tempGO.GetComponentInChildren<MeshRenderer>();
+
+            var clips = entry.clips;
+            var bakedMesh = new Mesh();
+            Mesh bakedReferenceMesh = null;
+
+            if (entry.isSkinned && (skinnedMR == null || skinnedMR.sharedMesh == null))
             {
                 Debug.LogError($"[VatBaker] No SkinnedMeshRenderer on {sourcePath}");
                 DestroyImmediate(tempGO);
                 return false;
             }
 
-            var clips = entry.clips;
-            var bakedMesh = new Mesh();
-            Mesh bakedReferenceMesh = null;
-
-            if (clips.Count == 0)
+            if (!entry.isSkinned && (meshFilter == null || meshRenderer == null || meshFilter.sharedMesh == null))
             {
-                Debug.LogError($"[VatBaker] No clips selected for {sourcePath}");
+                Debug.LogError($"[VatBaker] No MeshRenderer/MeshFilter on {sourcePath}");
                 DestroyImmediate(tempGO);
-                DestroyImmediate(bakedMesh);
                 return false;
             }
 
-            var firstClip = clips[0];
-            firstClip.SampleAnimation(tempGO, 0f);
-            if (animator != null) animator.Update(0f);
-            skinnedMR.BakeMesh(bakedMesh);
+            int vertexCount;
+            int totalFrames;
+            AnimationClipInfo[] clipInfos;
+            Texture2D posTex;
+            Texture2D normTex;
+            Material srcMat;
 
-            int vertexCount = bakedMesh.vertexCount;
+            if (entry.isSkinned)
+            {
+                if (clips.Count == 0)
+                {
+                    Debug.LogError($"[VatBaker] No clips selected for {sourcePath}");
+                    DestroyImmediate(tempGO);
+                    DestroyImmediate(bakedMesh);
+                    return false;
+                }
+
+                var firstClip = clips[0];
+                firstClip.SampleAnimation(tempGO, 0f);
+                if (animator != null) animator.Update(0f);
+                skinnedMR.BakeMesh(bakedMesh);
+
+                vertexCount = bakedMesh.vertexCount;
+                if (vertexCount <= 0)
+                {
+                    Debug.LogError($"[VatBaker] Baked mesh has no vertices for {sourcePath}");
+                    DestroyImmediate(tempGO);
+                    DestroyImmediate(bakedMesh);
+                    return false;
+                }
+
+                bakedReferenceMesh = Instantiate(bakedMesh);
+                bakedReferenceMesh.name = name + "_VAT_RenderMesh";
+
+                totalFrames = 0;
+                for (int c = 0; c < clips.Count; c++)
+                {
+                    int frames = Mathf.RoundToInt(clips[c].length * frameRate);
+                    if (frames < 1) frames = 1;
+                    totalFrames += frames;
+                }
+
+                var posFormat = TextureFormat.RGBAHalf;
+                var normFormat = normalHalfPrecision ? TextureFormat.RGBAHalf : TextureFormat.RGBA32;
+
+                posTex = new Texture2D(vertexCount, totalFrames, posFormat, false)
+                {
+                    name = name + "_PositionVAT",
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp
+                };
+
+                normTex = new Texture2D(vertexCount, totalFrames, normFormat, false)
+                {
+                    name = name + "_NormalVAT",
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp
+                };
+
+                clipInfos = new AnimationClipInfo[clips.Count];
+                int currentRow = 0;
+
+                for (int c = 0; c < clips.Count; c++)
+                {
+                    var clip = clips[c];
+                    int frames = Mathf.RoundToInt(clip.length * frameRate);
+                    if (frames < 1) frames = 1;
+
+                    clipInfos[c] = new AnimationClipInfo
+                    {
+                        name = clip.name,
+                        startFrame = currentRow,
+                        frameCount = frames,
+                        frameRate = frameRate
+                    };
+
+                    for (int f = 0; f < frames; f++)
+                    {
+                        float normalizedTime = frames > 1 ? f / (float)(frames - 1) : 0f;
+
+                        clip.SampleAnimation(tempGO, normalizedTime * clip.length);
+                        if (animator != null) animator.Update(0f);
+
+                        skinnedMR.BakeMesh(bakedMesh);
+
+                        var verts = bakedMesh.vertices;
+                        var norms = bakedMesh.normals;
+
+                        var posColors = new Color[vertexCount];
+                        var normColors = new Color[vertexCount];
+
+                        for (int v = 0; v < vertexCount && v < verts.Length; v++)
+                        {
+                            var p = verts[v];
+                            posColors[v] = new Color(p.x, p.y, p.z, 1f);
+
+                            var n = norms[v];
+                            normColors[v] = new Color(
+                                n.x * 0.5f + 0.5f,
+                                n.y * 0.5f + 0.5f,
+                                n.z * 0.5f + 0.5f,
+                                1f
+                            );
+                        }
+
+                        posTex.SetPixels(0, currentRow, vertexCount, 1, posColors);
+                        normTex.SetPixels(0, currentRow, vertexCount, 1, normColors);
+                        currentRow++;
+                    }
+                }
+
+                posTex.Apply(false, true);
+                normTex.Apply(false, true);
+
+                srcMat = skinnedMR.sharedMaterial;
+
+                DestroyImmediate(tempGO);
+                DestroyImmediate(bakedMesh);
+                goto AfterBake;
+            }
+
+            var staticMesh = meshFilter.sharedMesh;
+            vertexCount = staticMesh.vertexCount;
             if (vertexCount <= 0)
             {
-                Debug.LogError($"[VatBaker] Baked mesh has no vertices for {sourcePath}");
+                Debug.LogError($"[VatBaker] Mesh has no vertices for {sourcePath}");
                 DestroyImmediate(tempGO);
                 DestroyImmediate(bakedMesh);
                 return false;
             }
 
-            bakedReferenceMesh = Instantiate(bakedMesh);
+            var meshCopy = Instantiate(staticMesh);
+            var normals = meshCopy.normals;
+            if (normals == null || normals.Length != meshCopy.vertexCount)
+                meshCopy.RecalculateNormals();
+
+            bakedReferenceMesh = Instantiate(meshCopy);
             bakedReferenceMesh.name = name + "_VAT_RenderMesh";
 
-            int totalFrames = 0;
-            for (int c = 0; c < clips.Count; c++)
+            totalFrames = 1;
+            clipInfos = new AnimationClipInfo[1];
+            clipInfos[0] = new AnimationClipInfo
             {
-                int frames = Mathf.RoundToInt(clips[c].length * frameRate);
-                if (frames < 1) frames = 1;
-                totalFrames += frames;
-            }
+                name = "Static",
+                startFrame = 0,
+                frameCount = 1,
+                frameRate = frameRate
+            };
 
-            var posFormat = TextureFormat.RGBAHalf;
-            var normFormat = normalHalfPrecision ? TextureFormat.RGBAHalf : TextureFormat.RGBA32;
+            var staticPosFormat = TextureFormat.RGBAHalf;
+            var staticNormFormat = normalHalfPrecision ? TextureFormat.RGBAHalf : TextureFormat.RGBA32;
 
-            var posTex = new Texture2D(vertexCount, totalFrames, posFormat, false)
+            posTex = new Texture2D(vertexCount, totalFrames, staticPosFormat, false)
             {
                 name = name + "_PositionVAT",
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
 
-            var normTex = new Texture2D(vertexCount, totalFrames, normFormat, false)
+            normTex = new Texture2D(vertexCount, totalFrames, staticNormFormat, false)
             {
                 name = name + "_NormalVAT",
                 filterMode = FilterMode.Bilinear,
                 wrapMode = TextureWrapMode.Clamp
             };
 
-            var clipInfos = new AnimationClipInfo[clips.Count];
-            int currentRow = 0;
+            var vertsStatic = meshCopy.vertices;
+            var normsStatic = meshCopy.normals;
 
-            for (int c = 0; c < clips.Count; c++)
+            var posColorsStatic = new Color[vertexCount];
+            var normColorsStatic = new Color[vertexCount];
+
+            for (int v = 0; v < vertexCount && v < vertsStatic.Length; v++)
             {
-                var clip = clips[c];
-                int frames = Mathf.RoundToInt(clip.length * frameRate);
-                if (frames < 1) frames = 1;
+                var p = vertsStatic[v];
+                posColorsStatic[v] = new Color(p.x, p.y, p.z, 1f);
 
-                clipInfos[c] = new AnimationClipInfo
-                {
-                    name = clip.name,
-                    startFrame = currentRow,
-                    frameCount = frames,
-                    frameRate = frameRate
-                };
-
-                for (int f = 0; f < frames; f++)
-                {
-                    float normalizedTime = frames > 1 ? f / (float)(frames - 1) : 0f;
-
-                    clip.SampleAnimation(tempGO, normalizedTime * clip.length);
-                    if (animator != null) animator.Update(0f);
-
-                    skinnedMR.BakeMesh(bakedMesh);
-
-                    var verts = bakedMesh.vertices;
-                    var norms = bakedMesh.normals;
-
-                    var posColors = new Color[vertexCount];
-                    var normColors = new Color[vertexCount];
-
-                    for (int v = 0; v < vertexCount && v < verts.Length; v++)
-                    {
-                        var p = verts[v];
-                        posColors[v] = new Color(p.x, p.y, p.z, 1f);
-
-                        var n = norms[v];
-                        normColors[v] = new Color(
-                            n.x * 0.5f + 0.5f,
-                            n.y * 0.5f + 0.5f,
-                            n.z * 0.5f + 0.5f,
-                            1f
-                        );
-                    }
-
-                    posTex.SetPixels(0, currentRow, vertexCount, 1, posColors);
-                    normTex.SetPixels(0, currentRow, vertexCount, 1, normColors);
-                    currentRow++;
-                }
+                var n = normsStatic[v];
+                normColorsStatic[v] = new Color(
+                    n.x * 0.5f + 0.5f,
+                    n.y * 0.5f + 0.5f,
+                    n.z * 0.5f + 0.5f,
+                    1f
+                );
             }
+
+            posTex.SetPixels(0, 0, vertexCount, 1, posColorsStatic);
+            normTex.SetPixels(0, 0, vertexCount, 1, normColorsStatic);
 
             posTex.Apply(false, true);
             normTex.Apply(false, true);
 
-            // ── Extract original material BEFORE destroying temp ──
-            var srcMat = skinnedMR.sharedMaterial;
+            srcMat = meshRenderer.sharedMaterial;
 
             DestroyImmediate(tempGO);
-            if (bakedMesh != null) DestroyImmediate(bakedMesh);
+            DestroyImmediate(bakedMesh);
+            DestroyImmediate(meshCopy);
 
-            // ── Create VAT data ──
+        AfterBake:
             var vatData = ScriptableObject.CreateInstance<VatAnimationData>();
             vatData.name = name + "_VAT";
             vatData.positionTexture = posTex;

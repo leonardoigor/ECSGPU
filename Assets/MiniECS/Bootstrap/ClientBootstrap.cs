@@ -11,6 +11,7 @@ public class ClientBootstrap : MonoBehaviour
     {
         EntityManager.Reset();
         ModelRegistry.Clear();
+        SpatialHashManager.Dispose();
         SystemRegistry.RegisterAll();
         scheduler = new SystemScheduler(false, true);
         TryInitEcsSync();

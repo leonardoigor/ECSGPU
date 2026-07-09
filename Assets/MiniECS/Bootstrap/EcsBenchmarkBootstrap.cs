@@ -10,6 +10,7 @@ public class EcsBenchmarkBootstrap : MonoBehaviour
     {
         EntityManager.Reset();
         ModelRegistry.Clear();
+        SpatialHashManager.Dispose();
         SystemRegistry.RegisterAll();
         scheduler = new SystemScheduler(true, true);
     }
@@ -25,5 +26,6 @@ public class EcsBenchmarkBootstrap : MonoBehaviour
         var ctx = new SystemContext();
         foreach (var s in SystemRegistry.Systems)
             s.Destroy(ref ctx);
+        SpatialHashManager.Dispose();
     }
 }

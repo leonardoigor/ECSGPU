@@ -59,11 +59,6 @@ public class VatGpuRenderSpawner : MonoBehaviour
             modelIds[i] = ModelRegistry.Register(vat.originalMesh, vat.animationMaterial, vat);
         }
 
-        int maxChunks = Mathf.Max(count / 16, 1024);
-        int bucketCount = Mathf.NextPowerOfTwo(maxChunks * 2);
-        SpatialHashManager.Initialize(chunkSize, count, maxChunks, bucketCount);
-        AoISystem.QueryRadius = aoiRadius;
-
         entities = new int[count];
         animCounts = new int[count];
         timers = new float[count];
@@ -87,11 +82,12 @@ public class VatGpuRenderSpawner : MonoBehaviour
         int startAnim = clipCount > 0 ? Random.Range(0, clipCount) : 0;
         int startFrames = clipCount > 0 ? clips[startAnim].frameCount : 30;
         float startFrameRate = clipCount > 0 ? clips[startAnim].frameRate : 30f;
+        Vector3 pos = GridPosition(index);
 
         var entity = EntityManager.CreateEntity();
         EntityManager.Add(entity, new PositionComponent
         {
-            Value = GridPosition(index)
+            Value = pos
         });
         EntityManager.Add(entity, new RotationComponent
         {
@@ -115,11 +111,6 @@ public class VatGpuRenderSpawner : MonoBehaviour
             agentColor = modelColors[modelIndex];
 
         EntityManager.Add(entity, new ColorComponent { Value = agentColor });
-
-        Vector3 pos = GridPosition(index);
-        EntityManager.Add(entity, new ChunkReference { ChunkIndex = -1 });
-        ref var hash = ref SpatialHashManager.Instance;
-        hash.InsertEntity(entity.Id, pos);
 
         entities[index] = entity.Id;
         animCounts[index] = clipCount;

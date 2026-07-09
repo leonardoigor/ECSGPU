@@ -395,15 +395,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   vatModels:
-  - {fileID: 11400000, guid: bb3b62e6a696568499f948d96251b1d7, type: 2}
-  - {fileID: 11400000, guid: f31721a2a8c417e408e5bbc2ab090048, type: 2}
+  - {fileID: 11400000, guid: a1c94e0499285974ca4d133d0a1aed16, type: 2}
+  - {fileID: 11400000, guid: 8e99d53d3a71d404990b5cd5825bec4e, type: 2}
   count: 5000
-  radius: 50
   center: {x: 0, y: 0, z: 0}
+  spacing: 2
+  firstColWidth: 50
+  spawnsPerFrame: 100
+  chunkSize: 20
+  aoiRadius: 80
   enableRandomizer: 1
   minInterval: 1
   maxInterval: 10
   flipFlop: 1
+  randomColors: 1
+  modelColors:
+  - {r: 1, g: 1, b: 1, a: 1}
 --- !u!4 &2078525263
 Transform:
   m_ObjectHideFlags: 0
