@@ -1,3 +1,5 @@
+using Unity.Collections;
+
 namespace MiniECS.Rendering
 {
     public struct AnimationUpdateSystem : ISystem, IClientSystem, IMainThreadSystem
@@ -8,15 +10,22 @@ namespace MiniECS.Rendering
         {
             float dt = ctx.DeltaTime;
             var pool = EntityManager.Pool<AnimationComponent>();
+            var active = AoISystem.GetActiveEntities();
 
-            for (int i = 0; i < pool.entities.Count; i++)
+            if (!active.IsCreated) return;
+
+            for (int i = 0; i < active.Length; i++)
             {
-                var anim = pool.components[i];
+                int id = active[i];
+                if (!pool.Has(id)) continue;
+
+                int idx = pool.GetIndex(id);
+                var anim = pool.components[idx];
                 float frameRate = anim.FrameRate > 0f ? anim.FrameRate : 30f;
                 anim.CurrentFrame += dt * anim.Speed * frameRate;
                 if (anim.FrameCount > 0 && anim.CurrentFrame >= anim.FrameCount)
                     anim.CurrentFrame %= anim.FrameCount;
-                pool.components[i] = anim;
+                pool.components[idx] = anim;
             }
         }
 

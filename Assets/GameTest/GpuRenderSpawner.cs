@@ -47,6 +47,7 @@ public class GpuRenderSpawner : MonoBehaviour
                 Value = Random.rotation
             });
             EntityManager.Add(entity, new ModelIdComponent { Value = modelId });
+            EntityManager.Add(entity, new LodComponent { LodModelId = modelId, LodLevel = 1 });
         }
 
         Debug.Log($"[GpuRenderSpawner] Spawned {count} entities (modelId={modelId})");

@@ -20,7 +20,6 @@ namespace MiniECS.Rendering
 
         static Plane[] frustumPlanes = new Plane[6];
         static Camera cachedCamera;
-        static Vector3 cachedCameraPos;
         static float cullingRadius = 2.0f;
 
         public void OnCreate(ref SystemContext ctx) { }
@@ -41,11 +40,10 @@ namespace MiniECS.Rendering
             var rotations = rotPool.components;
             var modelIds = modPool.components;
             var anims = animPool.components;
-            var entities = posPool.entities;
+            var active = AoISystem.GetActiveEntities();
 
-            int count = entities.Count;
             int mc = ModelRegistry.Count;
-            if (count == 0 || mc == 0)
+            if (!active.IsCreated || active.Length == 0 || mc == 0)
                 return;
 
             var batch = BatchData.Instance;
@@ -55,82 +53,72 @@ namespace MiniECS.Rendering
             if (cachedCamera == null)
                 cachedCamera = Camera.main;
             if (cachedCamera != null)
-            {
                 GeometryUtility.CalculateFrustumPlanes(cachedCamera, frustumPlanes);
-                cachedCameraPos = cachedCamera.transform.position;
-            }
 
-            int[] tempModelIds = new int[count];
-            int[] tempLodLevels = new int[count];
-            float[] tempAnimFrames = new float[count];
-            int[] validIndices = new int[count];
+            var lodPool = EntityManager.Pool<LodComponent>();
+
+            int activeCount = active.Length;
+            int[] tempModelIds = new int[activeCount];
+            int[] tempLodLevels = new int[activeCount];
+            float[] tempAnimFrames = new float[activeCount];
+            int[] tempEntityIds = new int[activeCount];
             int validCount = 0;
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < activeCount; i++)
             {
-                int id = entities[i];
-                if (rotPool.Has(id) && modPool.Has(id))
+                int id = active[i];
+                if (!rotPool.Has(id) || !modPool.Has(id))
+                    continue;
+
+                int modIdx = modPool.GetIndex(id);
+                int baseModelId = modelIds[modIdx].Value;
+                if (baseModelId < 0 || baseModelId >= mc)
+                    continue;
+
+                int posIdx = posPool.GetIndex(id);
+                Vector3 pos = positions[posIdx].Value;
+
+                bool visible = true;
+                for (int p = 0; p < 6; p++)
                 {
-                    int modIdx = modPool.GetIndex(id);
-                    int baseModelId = modelIds[modIdx].Value;
-                    if (baseModelId >= 0 && baseModelId < mc)
+                    if (frustumPlanes[p].GetDistanceToPoint(pos) < -cullingRadius)
                     {
-                        Vector3 pos = positions[i].Value;
-
-                        bool visible = true;
-                        for (int p = 0; p < 6; p++)
-                        {
-                            if (frustumPlanes[p].GetDistanceToPoint(pos) < -cullingRadius)
-                            {
-                                visible = false;
-                                break;
-                            }
-                        }
-                        if (!visible) continue;
-
-                        int lodLevel = 1;
-                        int finalModelId = baseModelId;
-                        float rawAnimFrame = 0f;
-
-                        if (animPool.Has(id))
-                        {
-                            int animIdx = animPool.GetIndex(id);
-                            var anim = anims[animIdx];
-                            float frameRate = anim.FrameRate > 0f ? anim.FrameRate : 30f;
-                            rawAnimFrame = anim.CurrentFrame;
-
-                            var vatData = ModelRegistry.GetVatData(baseModelId);
-                            if (vatData != null && vatData.sqrCullDistance > 0f)
-                            {
-                                float distSqr = (pos - cachedCameraPos).sqrMagnitude;
-
-                                if (distSqr > vatData.sqrCullDistance)
-                                    continue;
-
-                                if (distSqr > vatData.sqrLod3Distance && vatData.lodUltraMaterial != null)
-                                {
-                                    lodLevel = 3;
-                                    finalModelId = baseModelId + 2;
-                                }
-                                else if (distSqr > vatData.sqrLod2Distance && vatData.lodLowMaterial != null)
-                                {
-                                    lodLevel = 2;
-                                    finalModelId = baseModelId + 1;
-                                }
-                            }
-                        }
-
-                        if (finalModelId >= mc)
-                            finalModelId = baseModelId;
-
-                        batch.GetCount(finalModelId)++;
-                        validIndices[validCount] = i;
-                        tempModelIds[validCount] = finalModelId;
-                        tempLodLevels[validCount] = lodLevel;
-                        tempAnimFrames[validCount] = rawAnimFrame;
-                        validCount++;
+                        visible = false;
+                        break;
                     }
                 }
+                if (!visible) continue;
+
+                int lodLevel = 1;
+                int finalModelId = baseModelId;
+                float rawAnimFrame = 0f;
+
+                if (animPool.Has(id))
+                {
+                    int animIdx = animPool.GetIndex(id);
+                    var anim = anims[animIdx];
+                    rawAnimFrame = anim.CurrentFrame;
+                }
+
+                if (lodPool.Has(id))
+                {
+                    int lodIdx = lodPool.GetIndex(id);
+                    var lod = lodPool.components[lodIdx];
+                    if (lod.LodModelId < 0)
+                        continue;
+                    finalModelId = lod.LodModelId;
+                    lodLevel = lod.LodLevel;
+                }
+
+                if (finalModelId >= mc)
+                    finalModelId = baseModelId;
+
+                batch.GetCount(finalModelId)++;
+                tempEntityIds[validCount] = id;
+                tempModelIds[validCount] = finalModelId;
+                tempLodLevels[validCount] = lodLevel;
+                tempAnimFrames[validCount] = rawAnimFrame;
+                validCount++;
             }
 
             if (validCount == 0)
@@ -167,14 +155,16 @@ namespace MiniECS.Rendering
 
             for (int i = 0; i < validCount; i++)
             {
-                int poolIdx = validIndices[i];
-                int id = entities[poolIdx];
+                int id = tempEntityIds[i];
                 int finalModelId = tempModelIds[i];
                 int lodLevel = tempLodLevels[i];
                 float rawAnimFrame = tempAnimFrames[i];
 
-                posArr[i] = positions[poolIdx].Value;
-                rotArr[i] = rotations[rotPool.GetIndex(id)].Value;
+                int posIdx = posPool.GetIndex(id);
+                posArr[i] = positions[posIdx].Value;
+
+                int rotIdx = rotPool.GetIndex(id);
+                rotArr[i] = rotations[rotIdx].Value;
 
                 if (colorPool.Has(id))
                 {

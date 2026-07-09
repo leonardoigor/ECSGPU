@@ -37,7 +37,8 @@ public static class GpuRenderSceneSetup
         var spawner = new GameObject("_Spawner");
         var vatSpawner = spawner.AddComponent<VatGpuRenderSpawner>();
         vatSpawner.count = 5000;
-        vatSpawner.radius = 50f;
+        vatSpawner.spacing = 2f;
+        vatSpawner.firstColWidth = 50;
         vatSpawner.flipFlop = true;
         vatSpawner.enableRandomizer = true;
         vatSpawner.minInterval = 1f;

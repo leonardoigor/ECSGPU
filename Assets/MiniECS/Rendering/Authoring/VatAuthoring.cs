@@ -32,6 +32,7 @@ namespace MiniECS.Rendering.Authoring
             EntityManager.Add(entity, new PositionComponent { Value = transform.position });
             EntityManager.Add(entity, new RotationComponent { Value = transform.rotation });
             EntityManager.Add(entity, new ModelIdComponent { Value = baseModelId });
+            EntityManager.Add(entity, new LodComponent { LodModelId = baseModelId, LodLevel = 1 });
             EntityManager.Add(entity, new AnimationComponent
             {
                 AnimIndex = 0,

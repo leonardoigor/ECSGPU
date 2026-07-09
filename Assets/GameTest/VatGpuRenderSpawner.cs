@@ -7,10 +7,16 @@ public class VatGpuRenderSpawner : MonoBehaviour
     [Header("VAT Models")]
     public VatAnimationData[] vatModels;
 
-    [Header("Spawn")]
+    [Header("Grid Spawn")]
     public int count = 10000;
-    public float radius = 50f;
     public Vector3 center = Vector3.zero;
+    public float spacing = 2f;
+    public int firstColWidth = 50;
+    public int spawnsPerFrame = 100;
+
+    [Header("Spatial Hash")]
+    public float chunkSize = 20f;
+    public float aoiRadius = 80f;
 
     [Header("Randomizer")]
     public bool enableRandomizer = true;
@@ -24,10 +30,13 @@ public class VatGpuRenderSpawner : MonoBehaviour
     public bool randomColors = true;
     public Color[] modelColors = new Color[] { Color.white };
 
+    int[] modelIds;
+    int spawnedCount;
     int[] entities;
     int[] animCounts;
     float[] timers;
     int frameIndex;
+    bool spawningDone;
 
     void Start()
     {
@@ -37,7 +46,7 @@ public class VatGpuRenderSpawner : MonoBehaviour
             return;
         }
 
-        int[] modelIds = new int[vatModels.Length];
+        modelIds = new int[vatModels.Length];
         for (int i = 0; i < vatModels.Length; i++)
         {
             var vat = vatModels[i];
@@ -50,61 +59,95 @@ public class VatGpuRenderSpawner : MonoBehaviour
             modelIds[i] = ModelRegistry.Register(vat.originalMesh, vat.animationMaterial, vat);
         }
 
+        int maxChunks = Mathf.Max(count / 16, 1024);
+        int bucketCount = Mathf.NextPowerOfTwo(maxChunks * 2);
+        SpatialHashManager.Initialize(chunkSize, count, maxChunks, bucketCount);
+        AoISystem.QueryRadius = aoiRadius;
+
         entities = new int[count];
         animCounts = new int[count];
         timers = new float[count];
-
-        for (int i = 0; i < count; i++)
-        {
-            int modelIndex = flipFlop ? (i % vatModels.Length) : Random.Range(0, vatModels.Length);
-            int modelId = modelIds[modelIndex];
-            var clips = vatModels[modelIndex].clips;
-            int clipCount = clips.Length;
-            int startAnim = clipCount > 0 ? Random.Range(0, clipCount) : 0;
-            int startFrames = clipCount > 0 ? clips[startAnim].frameCount : 30;
-            float startFrameRate = clipCount > 0 ? clips[startAnim].frameRate : 30f;
-
-            var entity = EntityManager.CreateEntity();
-            EntityManager.Add(entity, new PositionComponent
-            {
-                Value = center + Random.insideUnitSphere * radius
-            });
-            EntityManager.Add(entity, new RotationComponent
-            {
-                Value = Random.rotationUniform
-            });
-            EntityManager.Add(entity, new ModelIdComponent { Value = modelId });
-            EntityManager.Add(entity, new AnimationComponent
-            {
-                AnimIndex = startAnim,
-                CurrentFrame = Random.Range(0f, startFrames),
-                Speed = Random.Range(0.8f, 1.2f),
-                FrameCount = startFrames,
-                FrameRate = startFrameRate
-            });
-
-            Color agentColor = Color.white;
-            if (randomColors)
-                agentColor = Random.ColorHSV(0f, 1f, 0.7f, 1f, 0.5f, 1f);
-            else if (modelColors != null && modelIndex < modelColors.Length)
-                agentColor = modelColors[modelIndex];
-
-            EntityManager.Add(entity, new ColorComponent { Value = agentColor });
-
-            entities[i] = entity.Id;
-            animCounts[i] = clipCount;
-            timers[i] = Random.Range(minInterval, maxInterval);
-        }
-
-        Debug.Log($"[VatGpuRenderSpawner] Spawned {count} VAT entities across {vatModels.Length} model(s). flipFlop={flipFlop} randomizer={enableRandomizer}");
-
-        if (!enableRandomizer)
-            Destroy(this);
+        spawnedCount = 0;
+        spawningDone = false;
     }
 
-        void Update()
+    Vector3 GridPosition(int index)
+    {
+        int col = index % firstColWidth;
+        int row = index / firstColWidth;
+        return center + new Vector3(col * spacing, 0f, row * spacing);
+    }
+
+    void SpawnEntity(int index)
+    {
+        int modelIndex = flipFlop ? (index % vatModels.Length) : Random.Range(0, vatModels.Length);
+        int modelId = modelIds[modelIndex];
+        var clips = vatModels[modelIndex].clips;
+        int clipCount = clips.Length;
+        int startAnim = clipCount > 0 ? Random.Range(0, clipCount) : 0;
+        int startFrames = clipCount > 0 ? clips[startAnim].frameCount : 30;
+        float startFrameRate = clipCount > 0 ? clips[startAnim].frameRate : 30f;
+
+        var entity = EntityManager.CreateEntity();
+        EntityManager.Add(entity, new PositionComponent
         {
-            if (count == 0 || timers == null) return;
+            Value = GridPosition(index)
+        });
+        EntityManager.Add(entity, new RotationComponent
+        {
+            Value = Random.rotationUniform
+        });
+        EntityManager.Add(entity, new ModelIdComponent { Value = modelId });
+        EntityManager.Add(entity, new LodComponent { LodModelId = modelId, LodLevel = 1 });
+        EntityManager.Add(entity, new AnimationComponent
+        {
+            AnimIndex = startAnim,
+            CurrentFrame = Random.Range(0f, startFrames),
+            Speed = Random.Range(0.8f, 1.2f),
+            FrameCount = startFrames,
+            FrameRate = startFrameRate
+        });
+
+        Color agentColor = Color.white;
+        if (randomColors)
+            agentColor = Random.ColorHSV(0f, 1f, 0.7f, 1f, 0.5f, 1f);
+        else if (modelColors != null && modelIndex < modelColors.Length)
+            agentColor = modelColors[modelIndex];
+
+        EntityManager.Add(entity, new ColorComponent { Value = agentColor });
+
+        Vector3 pos = GridPosition(index);
+        EntityManager.Add(entity, new ChunkReference { ChunkIndex = -1 });
+        ref var hash = ref SpatialHashManager.Instance;
+        hash.InsertEntity(entity.Id, pos);
+
+        entities[index] = entity.Id;
+        animCounts[index] = clipCount;
+        timers[index] = Random.Range(minInterval, maxInterval);
+    }
+
+    void Update()
+    {
+        if (spawnedCount < count)
+        {
+            int end = Mathf.Min(spawnedCount + spawnsPerFrame, count);
+            for (int i = spawnedCount; i < end; i++)
+                SpawnEntity(i);
+            spawnedCount = end;
+
+            if (spawnedCount >= count)
+            {
+                spawningDone = true;
+                Debug.Log($"[VatGpuRenderSpawner] Spawned {count} VAT entities across {vatModels.Length} model(s). flipFlop={flipFlop} randomizer={enableRandomizer}");
+
+                if (!enableRandomizer)
+                    Destroy(this);
+            }
+            return;
+        }
+
+        if (!enableRandomizer || !spawningDone)
+            return;
 
         float avgInterval = (minInterval + maxInterval) * 0.5f;
         int perFrame = Mathf.Max(1, (int)(count / avgInterval));
