@@ -48,11 +48,11 @@ namespace MiniECS.Rendering
                 hook = mainCamera.gameObject.AddComponent<VatRenderHook>();
             }
 
-            DebugFlyCamera debugCam = mainCamera.GetComponent<DebugFlyCamera>();
-            if (debugCam == null)
-            {
-                debugCam = mainCamera.gameObject.AddComponent<DebugFlyCamera>();
-            }
+            //DebugFlyCamera debugCam = mainCamera.GetComponent<DebugFlyCamera>();
+            //if (debugCam == null)
+            //{
+            //    debugCam = mainCamera.gameObject.AddComponent<DebugFlyCamera>();
+            //}
 
             hook.SetCamera(mainCamera);
         }
