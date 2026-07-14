@@ -1,0 +1,123 @@
+
+#pragma kernel CSRelaxPathGrid
+
+struct GpuGridCoordComponent
+{
+    int2 Value;
+};
+
+struct GpuPathStateComponent
+{
+    int Distance;
+    int BestDirection;
+    uint Walkable;
+    uint Padding;
+};
+
+struct GpuPathStateNextComponent
+{
+    int Distance;
+    int BestDirection;
+    uint Walkable;
+    uint Padding;
+};
+
+StructuredBuffer<GpuGridCoordComponent> _coords;
+StructuredBuffer<GpuPathStateComponent> _state;
+RWStructuredBuffer<GpuPathStateNextComponent> _stateNext;
+
+uint _entityCount;
+int _width;
+int _height;
+int _blockedDistance;
+
+[numthreads(64, 1, 1)]
+void CSRelaxPathGrid(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= _entityCount)
+    return;
+    int2 coord = _coords[idx].Value;
+    GpuPathStateComponent current = _state[idx];
+    GpuPathStateNextComponent next;
+    next.Distance = current.Distance;
+    next.BestDirection = current.BestDirection;
+    next.Walkable = current.Walkable;
+    next.Padding = current.Padding;
+    if (current.Walkable == 0u)
+    {
+        next.Distance = _blockedDistance;
+        next.BestDirection = -1;
+        _stateNext[idx] = next;
+        return;
+    }
+    if (current.Distance == 0)
+    {
+        next.BestDirection = 4;
+        _stateNext[idx] = next;
+        return;
+    }
+    int bestDistance = current.Distance;
+    int bestDirection = current.BestDirection;
+    if (coord.x > 0)
+    {
+        uint neighborIndex = (uint)(coord.y * _width + (coord.x - 1));
+        GpuPathStateComponent neighbor = _state[neighborIndex];
+        if (neighbor.Walkable != 0u)
+        {
+            int candidate = neighbor.Distance + 1;
+            if (candidate < bestDistance)
+            {
+                bestDistance = candidate;
+                bestDirection = 0;
+            }
+        }
+    }
+    if (coord.x < _width - 1)
+    {
+        uint neighborIndex = (uint)(coord.y * _width + (coord.x + 1));
+        GpuPathStateComponent neighbor = _state[neighborIndex];
+        if (neighbor.Walkable != 0u)
+        {
+            int candidate = neighbor.Distance + 1;
+            if (candidate < bestDistance)
+            {
+                bestDistance = candidate;
+                bestDirection = 1;
+            }
+        }
+    }
+    if (coord.y > 0)
+    {
+        uint neighborIndex = (uint)((coord.y - 1) * _width + coord.x);
+        GpuPathStateComponent neighbor = _state[neighborIndex];
+        if (neighbor.Walkable != 0u)
+        {
+            int candidate = neighbor.Distance + 1;
+            if (candidate < bestDistance)
+            {
+                bestDistance = candidate;
+                bestDirection = 2;
+            }
+        }
+    }
+    if (coord.y < _height - 1)
+    {
+        uint neighborIndex = (uint)((coord.y + 1) * _width + coord.x);
+        GpuPathStateComponent neighbor = _state[neighborIndex];
+        if (neighbor.Walkable != 0u)
+        {
+            int candidate = neighbor.Distance + 1;
+            if (candidate < bestDistance)
+            {
+                bestDistance = candidate;
+                bestDirection = 3;
+            }
+        }
+    }
+    next.Distance = bestDistance;
+    next.BestDirection = bestDirection;
+    _stateNext[idx] = next;
+}
+
+

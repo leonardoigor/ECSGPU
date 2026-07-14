@@ -565,6 +565,126 @@ public class Spawner : MonoBehaviour
 
 ---
 
+## GPU ECS — Generated Compute Pipeline
+
+The project now includes a GPU ECS pipeline where the source of truth is C#, not handwritten `.compute` files.
+
+### Authoring Model
+
+Define GPU data with `[GpuComponent]` and GPU kernels with `[GpuSystem]` + `[GpuKernel]`:
+
+```csharp
+using ECSGPU.GpuEcs;
+using Unity.Mathematics;
+
+[GpuComponent]
+public struct GpuGridCoordComponent : IGpuComponent
+{
+    public int2 Value;
+}
+
+[GpuSystem("CSInitializePathGrid", ThreadX = 64)]
+public partial struct GpuPathInitKernel
+{
+    [GpuReadOnly] public GpuComponentBuffer<GpuGridCoordComponent> _coords;
+    [GpuReadWrite] public GpuComponentBuffer<GpuPathStateComponent> _state;
+
+    public uint _entityCount;
+    public int _targetX;
+    public int _targetY;
+
+    [GpuKernel]
+    public void Execute()
+    {
+        uint idx = GpuDispatch.threadId.x;
+        if (idx >= _entityCount) return;
+        // kernel logic written in C#
+    }
+}
+```
+
+### Automatic Export
+
+After script reload, the editor exports generated artifacts automatically:
+
+- `[GpuComponent]` structs -> `Assets/ECSGPU.GpuEcs/Generated/GpuComponents.auto.hlsl`
+- `[GpuSystem]` kernels -> `Assets/Resources/ECSGPU.GpuEcs/Generated/ComputeShaders/*.compute`
+
+Manual export is also available:
+
+- `Tools > GPU ECS > Export GPU Components to HLSL`
+- `Tools > GPU ECS > Export GPU Kernels to ComputeShaders`
+
+At runtime, generated shaders are loaded by convention through `GpuGeneratedComputeShaderLoader`:
+
+```csharp
+initShader = GpuGeneratedComputeShaderLoader.Load<GpuPathInitKernel>();
+relaxShader = GpuGeneratedComputeShaderLoader.Load<GpuPathRelaxKernel>();
+commitShader = GpuGeneratedComputeShaderLoader.Load<GpuPathCommitKernel>();
+```
+
+This means users should write kernels in C# and let the pipeline materialize the `.compute` assets Unity needs.
+
+### GpuWorld and Debugging
+
+`GpuWorld` owns typed `ComputeBuffer` instances for GPU components. A MonoBehaviour can publish that world through `GpuWorldDebug`, and the editor window can inspect it live:
+
+- `Tools > GPU ECS > World Inspector`
+
+The inspector shows:
+
+- registered buffers
+- element count / stride / capacity
+- estimated GPU memory
+- manual readback for spot checks
+
+### Pathfinding Example
+
+The basic grid pathfinding example lives in:
+
+- `Assets/GameTest/GpuPathfindingComponents.cs`
+- `Assets/GameTest/GpuPathfindingSystem.cs`
+- `Assets/GameTest/GpuGridPathfindingTest.cs`
+
+It currently uses three generated kernels:
+
+- `GpuPathInitKernel`
+- `GpuPathRelaxKernel`
+- `GpuPathCommitKernel`
+
+The demo keeps the authoritative path state on the GPU and only requests a snapshot when needed for:
+
+- debug visualization
+- optional CPU ECS export
+
+This is intentionally different from the older demo style where `_stateData` / `_stateNextData` lived permanently on the CPU.
+
+### CPU Bridge from GPU Results
+
+`GpuGridPathfindingTest` can optionally export GPU results into MiniECS entities:
+
+```csharp
+public struct PathCellCpuComponent : IComponentData
+{
+    public Vector2Int Coord;
+    public int Distance;
+    public int BestDirection;
+    public bool Walkable;
+}
+```
+
+When `exportToCpuEcs` is enabled, a GPU readback snapshot is transformed into CPU entities, optionally also writing `PositionComponent` for downstream MiniECS systems.
+
+Use this bridge when:
+
+- CPU gameplay systems need a snapshot of GPU results
+- debug tooling should inspect the solved grid through MiniECS
+- rendering or gameplay remains CPU-driven, but solving stays GPU-first
+
+Avoid using readback every frame unless the CPU truly needs the data, because GPU -> CPU synchronization is still a cost.
+
+---
+
 ## Netcode — Network Sync
 
 MiniECS includes automatic network synchronization via Unity's Netcode for GameObjects.

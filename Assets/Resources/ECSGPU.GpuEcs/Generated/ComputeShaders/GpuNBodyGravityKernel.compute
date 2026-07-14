@@ -1,0 +1,60 @@
+
+#pragma kernel CSGravity
+
+struct GpuPositionComponent
+{
+    float3 Value;
+};
+
+struct GpuVelocityComponent
+{
+    float3 Value;
+};
+
+struct GpuMassComponent
+{
+    float Value;
+};
+
+struct GpuForceComponent
+{
+    float3 Value;
+};
+
+RWStructuredBuffer<GpuPositionComponent> _positions;
+RWStructuredBuffer<GpuVelocityComponent> _velocities;
+StructuredBuffer<GpuMassComponent> _masses;
+RWStructuredBuffer<GpuForceComponent> _forces;
+
+float _deltaTime;
+float _gravitationalConstant;
+float _softening;
+uint _entityCount;
+uint _planarMotion;
+
+[numthreads(256, 1, 1)]
+void CSGravity(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= _entityCount)
+    return;
+    float3 myPos = _positions[idx].Value;
+    float3 acc = float3(0, 0, 0);
+    for (uint other = 0; other < _entityCount; other++)
+    {
+        if (other == idx)
+        continue;
+        float3 delta = _positions[other].Value - myPos;
+        if (_planarMotion)
+        delta.y = 0;
+        float distSqr = dot(delta, delta) + _softening * _softening;
+        float invDist3 = rsqrt(distSqr);
+        invDist3 = invDist3 * invDist3 * invDist3;
+        acc += delta * (_gravitationalConstant * _masses[other].Value * invDist3);
+    }
+    GpuForceComponent forceResult;
+    forceResult.Value = acc * _masses[idx].Value;
+    _forces[idx] = forceResult;
+}
+
+

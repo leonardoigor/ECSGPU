@@ -49,15 +49,15 @@ namespace MiniECS
 
             EnsureSparse(id);
 
-            sparse[id] = count;
-            denseEntity[count] = id;
-            lookup[id] = count;
-            entities.Add(id);
-
             if (count >= components.Length)
                 Array.Resize(ref components, components.Length * 2);
             if (count >= denseEntity.Length)
                 Array.Resize(ref denseEntity, denseEntity.Length * 2);
+
+            sparse[id] = count;
+            denseEntity[count] = id;
+            lookup[id] = count;
+            entities.Add(id);
 
             components[count] = c;
             count++;

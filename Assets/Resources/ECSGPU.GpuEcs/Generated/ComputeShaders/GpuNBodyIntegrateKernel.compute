@@ -1,0 +1,59 @@
+
+#pragma kernel CSIntegrateMotion
+
+struct GpuPositionComponent
+{
+    float3 Value;
+};
+
+struct GpuVelocityComponent
+{
+    float3 Value;
+};
+
+struct GpuMassComponent
+{
+    float Value;
+};
+
+struct GpuForceComponent
+{
+    float3 Value;
+};
+
+RWStructuredBuffer<GpuPositionComponent> _positions;
+RWStructuredBuffer<GpuVelocityComponent> _velocities;
+StructuredBuffer<GpuMassComponent> _masses;
+StructuredBuffer<GpuForceComponent> _forces;
+
+float _deltaTime;
+uint _entityCount;
+uint _planarMotion;
+
+[numthreads(256, 1, 1)]
+void CSIntegrateMotion(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= _entityCount)
+    return;
+    float3 position = _positions[idx].Value;
+    float3 velocity = _velocities[idx].Value;
+    float mass = _masses[idx].Value;
+    float3 force = _forces[idx].Value;
+    float3 acceleration = force / max(mass, 0.0001f);
+    velocity += acceleration * _deltaTime;
+    position += velocity * _deltaTime;
+    if (_planarMotion)
+    {
+        position.y = 0;
+        velocity.y = 0;
+    }
+    GpuPositionComponent posResult;
+    posResult.Value = position;
+    _positions[idx] = posResult;
+    GpuVelocityComponent velResult;
+    velResult.Value = velocity;
+    _velocities[idx] = velResult;
+}
+
+

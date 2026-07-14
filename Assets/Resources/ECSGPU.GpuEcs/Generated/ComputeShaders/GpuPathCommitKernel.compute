@@ -1,0 +1,40 @@
+
+#pragma kernel CSCommitPathGrid
+
+struct GpuPathStateNextComponent
+{
+    int Distance;
+    int BestDirection;
+    uint Walkable;
+    uint Padding;
+};
+
+struct GpuPathStateComponent
+{
+    int Distance;
+    int BestDirection;
+    uint Walkable;
+    uint Padding;
+};
+
+StructuredBuffer<GpuPathStateNextComponent> _stateNext;
+RWStructuredBuffer<GpuPathStateComponent> _state;
+
+uint _entityCount;
+
+[numthreads(64, 1, 1)]
+void CSCommitPathGrid(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= _entityCount)
+    return;
+    GpuPathStateNextComponent source = _stateNext[idx];
+    GpuPathStateComponent target;
+    target.Distance = source.Distance;
+    target.BestDirection = source.BestDirection;
+    target.Walkable = source.Walkable;
+    target.Padding = source.Padding;
+    _state[idx] = target;
+}
+
+

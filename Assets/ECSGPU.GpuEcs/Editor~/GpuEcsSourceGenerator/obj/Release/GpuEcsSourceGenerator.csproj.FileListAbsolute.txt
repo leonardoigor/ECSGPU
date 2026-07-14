@@ -1,0 +1,11 @@
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\obj\Release\GpuEcsSourceGenerator.csproj.AssemblyReference.cache
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\obj\Release\GpuEcsSourceGenerator.GeneratedMSBuildEditorConfig.editorconfig
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\obj\Release\GpuEcsSourceGenerator.AssemblyInfoInputs.cache
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\obj\Release\GpuEcsSourceGenerator.AssemblyInfo.cs
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\obj\Release\GpuEcsSourceGenerator.csproj.CoreCompileInputs.cache
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\obj\Release\GpuEcsSourceGenerator.sourcelink.json
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\bin\Release\ECSGPU.GpuEcs.SourceGenerator.deps.json
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\bin\Release\ECSGPU.GpuEcs.SourceGenerator.dll
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\bin\Release\ECSGPU.GpuEcs.SourceGenerator.pdb
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\obj\Release\ECSGPU.GpuEcs.SourceGenerator.dll
+D:\UnityProjects\ECSGPU\Assets\ECSGPU.GpuEcs\Editor~\GpuEcsSourceGenerator\obj\Release\ECSGPU.GpuEcs.SourceGenerator.pdb
