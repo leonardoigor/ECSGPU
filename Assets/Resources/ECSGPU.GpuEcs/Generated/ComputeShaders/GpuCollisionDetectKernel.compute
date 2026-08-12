@@ -1,0 +1,92 @@
+
+#pragma kernel CSGpuCollisionDetect
+
+struct GpuPositionComponent
+{
+    float3 Value;
+};
+
+struct GpuColliderComponent
+{
+    int Shape;
+    int IsTrigger;
+    float3 WorldCenter;
+    float BoundingRadius;
+};
+
+struct GpuCollisionResultComponent
+{
+    int OtherId;
+    float3 Normal;
+    float Depth;
+    int IsTrigger;
+};
+
+RWStructuredBuffer<GpuPositionComponent> _positions;
+RWStructuredBuffer<GpuColliderComponent> _colliders;
+RWStructuredBuffer<GpuCollisionResultComponent> _results;
+
+uint _entityCount;
+float _resolve;
+
+[numthreads(256, 1, 1)]
+void CSGpuCollisionDetect(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= _entityCount)
+    return;
+    float3 posA = _positions[idx].Value;
+    GpuColliderComponent colA = _colliders[idx];
+    float3 centerA = colA.WorldCenter;
+    GpuCollisionResultComponent myResult;
+    myResult.OtherId = 0;
+    myResult.Normal = float3(0.0f, 0.0f, 0.0f);
+    myResult.Depth = 0.0f;
+    myResult.IsTrigger = 0;
+    float3 push = float3(0.0f, 0.0f, 0.0f);
+    for (uint other = 0; other < _entityCount; other++)
+    {
+        if (other <= idx)
+        continue;
+        float3 posB = _positions[other].Value;
+        GpuColliderComponent colB = _colliders[other];
+        float3 centerB = colB.WorldCenter;
+        float3 d = centerB - centerA;
+        float dist = length(d);
+        float rsum = colA.BoundingRadius + colB.BoundingRadius;
+        if (dist < rsum)
+        {
+            float3 n;
+            if (dist > 0.0001f)
+            {
+                n = d / dist;
+            }
+            else
+            {
+                n = float3(1.0f, 0.0f, 0.0f);
+            }
+            float depth = rsum - dist;
+            int isTrigger = colA.IsTrigger | colB.IsTrigger;
+            if (depth > myResult.Depth)
+            {
+                myResult.OtherId = (int)other;
+                myResult.Normal = n;
+                myResult.Depth = depth;
+                myResult.IsTrigger = isTrigger;
+            }
+            if (_resolve > 0.5f && isTrigger == 0)
+            {
+                push = push - n * depth;
+            }
+        }
+    }
+    _results[idx] = myResult;
+    if (_resolve > 0.5f)
+    {
+        GpuPositionComponent p;
+        p.Value = posA + push;
+        _positions[idx] = p;
+    }
+}
+
+

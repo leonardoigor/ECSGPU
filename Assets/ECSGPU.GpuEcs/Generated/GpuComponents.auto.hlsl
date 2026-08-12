@@ -25,6 +25,22 @@ struct GpuPathStateNextComponent
     uint Padding;
 };
 
+struct GpuColliderComponent
+{
+    int Shape;
+    int IsTrigger;
+    float3 WorldCenter;
+    float BoundingRadius;
+};
+
+struct GpuCollisionResultComponent
+{
+    int OtherId;
+    float3 Normal;
+    float Depth;
+    int IsTrigger;
+};
+
 struct GpuColorComponent
 {
     float4 Value;

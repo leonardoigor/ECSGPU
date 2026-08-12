@@ -1,4 +1,6 @@
 using UnityEngine;
+using Unity.Mathematics;
+using MiniECS.Physics;
 
 namespace MiniECS.Rendering
 {
@@ -51,11 +53,60 @@ namespace MiniECS.Rendering
         public float normalScale = 1f;
         public float occlusionStrength = 1f;
 
+        [Header("Baked Collider (captured by VAT Baker from source Collider)")]
+        public VatColliderInfo colliderInfo;
+
+        public bool HasCollider => colliderInfo.hasCollider;
+
+        /// <summary>
+        /// Builds a ColliderComponent from the baked collider descriptor.
+        /// For ConvexMesh with no precomputed index, pass the runtime mesh
+        /// (e.g. originalMesh) so its convex hull is registered on demand.
+        /// </summary>
+        public ColliderComponent BuildColliderComponent(Mesh runtimeMesh = null)
+        {
+            var c = new ColliderComponent
+            {
+                IsTrigger = colliderInfo.isTrigger ? (byte)1 : (byte)0,
+                Layer = (byte)colliderInfo.layer,
+                Shape = colliderInfo.shape,
+                HalfExtents = colliderInfo.halfExtents,
+                Radius = colliderInfo.radius,
+                CapsuleHeight = colliderInfo.capsuleHeight,
+                CapsuleAxis = colliderInfo.capsuleAxis,
+                CenterOffset = colliderInfo.centerOffset,
+                MeshHullIndex = colliderInfo.meshHullIndex
+            };
+            if (c.Shape == ColliderShapeType.ConvexMesh && c.MeshHullIndex < 0 && runtimeMesh != null)
+                c.MeshHullIndex = ConvexHullRegistry.GetOrCreate(runtimeMesh);
+            return c;
+        }
+
         void OnValidate()
         {
             if (positionTexture != null)
                 vertexCount = positionTexture.width;
         }
+    }
+
+    /// <summary>
+    /// Serializable snapshot of a Unity Collider, captured by the VAT Baker from
+    /// the source GameObject so VAT-spawned entities can be given an equivalent
+    /// ColliderComponent at runtime.
+    /// </summary>
+    [System.Serializable]
+    public struct VatColliderInfo
+    {
+        public bool hasCollider;
+        public ColliderShapeType shape;
+        public float3 halfExtents;
+        public float radius;
+        public float capsuleHeight;
+        public int capsuleAxis;     // 0 = X, 1 = Y, 2 = Z
+        public float3 centerOffset; // local offset from the entity (root) transform
+        public int meshHullIndex;   // ConvexMesh only; -1 => resolve at runtime from originalMesh
+        public bool isTrigger;
+        public int layer;
     }
 
     [System.Serializable]

@@ -793,6 +793,133 @@ var authoring = gameObject.AddComponent<RenderAuthoring>();
 
 ---
 
+## Colliders
+
+The MiniECS collider system turns Unity colliders into ECS entities and runs a full collision pipeline: broad phase → narrow phase (GJK/EPA) → positional resolve → events. **Solid** colliders push each other apart (kinematic); **triggers** (`IsTrigger = 1`) only fire events and never move.
+
+### CollisionConfig
+
+Global static tuning. Set it before the systems run:
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `RunCollidersOnGpu` | `false` | `true` routes collision to the GPU kernel (bounding-sphere, O(n²)); `false` uses the CPU Jobs/Burst pipeline (grid broad phase + GJK/EPA). |
+| `BroadPhaseCellSize` | `4` | Uniform-grid cell size (world units) for the CPU broad phase. |
+| `ResolvePenetration` | `true` | Whether solid overlaps are separated each frame. |
+| `GenerateEvents` | `true` | Whether Enter/Stay/Exit events are produced. |
+| `MaxContactsPerEntity` | `8` | Max collisions tracked per entity (CPU pipeline). |
+
+### Supported shapes
+
+`ColliderShapeType`: `Sphere`, `Box`, `Capsule`, `ConvexMesh`. Convex meshes are cached in `ConvexHullRegistry` (built lazily from a `Mesh`).
+
+### 1. Authoring from a Unity Collider (runtime)
+
+`ColliderAuthoring` (MonoBehaviour) reads a `Collider` on the same GameObject and spawns an entity with `ColliderComponent` + `PositionComponent` + `RotationComponent`:
+
+```csharp
+using MiniECS.Physics;
+
+public class Enemy : MonoBehaviour
+{
+    void Awake()
+    {
+        var authoring = gameObject.AddComponent<ColliderAuthoring>();
+        authoring.isTrigger = false;   // solid by default
+        authoring.layer = 0;
+        authoring.sourceCollider = GetComponent<Collider>(); // optional; defaults to GetComponent<Collider>()
+    }
+}
+```
+
+### 2. Manual ColliderComponent
+
+```csharp
+var entity = EntityManager.CreateEntity();
+EntityManager.Add(entity, new PositionComponent { Value = pos });
+EntityManager.Add(entity, new RotationComponent { Value = rot });
+
+// Box
+EntityManager.Add(entity, new ColliderComponent
+{
+    Shape = ColliderShapeType.Box,
+    IsTrigger = 0,
+    HalfExtents = new float3(0.5f, 1f, 0.5f),
+    CenterOffset = float3.zero,
+    MeshHullIndex = -1
+});
+
+// Capsule (axis: 0 = X, 1 = Y, 2 = Z)
+new ColliderComponent
+{
+    Shape = ColliderShapeType.Capsule,
+    Radius = 0.5f,
+    CapsuleHeight = 2f,
+    CapsuleAxis = 1
+};
+
+// ConvexMesh (built lazily from a Mesh)
+int hull = ConvexHullRegistry.GetOrCreate(myMesh);
+new ColliderComponent
+{
+    Shape = ColliderShapeType.ConvexMesh,
+    MeshHullIndex = hull,
+    CenterOffset = float3.zero
+};
+```
+
+### 3. Baked colliders from VAT
+
+The VAT Baker captures the source GameObject's `Collider` into the `VatAnimationData` asset (Box/Sphere/Capsule copied exactly; MeshCollider stored as `ConvexMesh`). Attach it manually when you spawn a VAT entity:
+
+```csharp
+using MiniECS.Physics;
+using MiniECS.Rendering;
+
+if (vatData.HasCollider)
+{
+    // Pass the baked mesh so ConvexMesh hulls resolve on demand
+    EntityManager.Add(entity, vatData.BuildColliderComponent(vatData.originalMesh));
+}
+```
+
+Only omit the mesh argument for Sphere/Box/Capsule — `ConvexMesh` colliders require it to register their hull at runtime.
+
+### Collision events
+
+When `CollisionConfig.GenerateEvents` is `true`, `CollisionSystem` diffs pairs frame-to-frame and raises `Enter` / `Stay` / `Exit` events. Subscribe once:
+
+```csharp
+using MiniECS.Physics;
+using Unity.Collections;
+
+void OnEnable()  => CollisionEvents.Subscribe(OnCollisions);
+void OnDisable() => CollisionEvents.Unsubscribe(OnCollisions);
+
+void OnCollisions(NativeArray<CollisionEvent> events)
+{
+    for (int i = 0; i < events.Length; i++)
+    {
+        var e = events[i];
+        if (e.IsTrigger == 1) continue; // skip triggers if only solids matter
+        // e.EntityA, e.EntityB, e.Normal (A -> B), e.Penetration, e.Phase
+    }
+}
+```
+
+`CollisionEvents.List` holds the per-frame buffer and is cleared automatically each frame by the system.
+
+### CPU vs GPU pipeline
+
+- **CPU** (`RunCollidersOnGpu = false`): uniform-grid broad phase + GJK/EPA narrow phase — all 4 shapes, accurate convex collision. On a solid overlap the lower-index entity is pushed out.
+- **GPU** (`RunCollidersOnGpu = true`): `GpuCollisionBridge` (Assembly-CSharp glue) precomputes each collider's world center, dispatches a compute kernel doing O(n²) bounding-sphere collision, and reads back positions/results. The kernel uses bounding spheres only (no quaternion math on GPU), so it is approximate but very fast.
+
+```csharp
+CollisionConfig.RunCollidersOnGpu = true; // swap pipelines at runtime
+```
+
+---
+
 ## Bootstrap
 
 ### ServerBootstrap

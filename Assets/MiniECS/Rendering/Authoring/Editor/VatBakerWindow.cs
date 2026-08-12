@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEditor;
+using Unity.Mathematics;
+using MiniECS.Physics;
 using System.IO;
 using System.Collections.Generic;
 
@@ -531,6 +533,64 @@ namespace MiniECS.Rendering.Authoring.Editor
             Repaint();
         }
 
+        /// <summary>
+        /// Captures a Collider from the source GameObject so the baked
+        /// VatAnimationData carries an equivalent collider. Box / Sphere /
+        /// Capsule are copied exactly (dimensions + local center); MeshCollider
+        /// is recorded as ConvexMesh and its hull is resolved at runtime from the
+        /// baked mesh. Anything else falls back to a bounding box.
+        /// </summary>
+        VatColliderInfo CaptureCollider(GameObject root)
+        {
+            var info = new VatColliderInfo { hasCollider = false, meshHullIndex = -1 };
+            var col = root.GetComponentInChildren<Collider>();
+            if (col == null)
+                return info;
+
+            info.hasCollider = true;
+            info.isTrigger = col.isTrigger;
+            info.layer = col.gameObject.layer;
+
+            Transform rootT = root.transform;
+            Vector3 WorldCenterOf(Vector3 localCenter) => col.transform.TransformPoint(localCenter);
+            float3 RootLocal(Vector3 world) => (float3)rootT.InverseTransformPoint(world);
+
+            if (col is BoxCollider bc)
+            {
+                info.shape = ColliderShapeType.Box;
+                info.centerOffset = RootLocal(WorldCenterOf(bc.center));
+                info.halfExtents = (float3)(bc.size * 0.5f);
+            }
+            else if (col is SphereCollider sc)
+            {
+                info.shape = ColliderShapeType.Sphere;
+                info.centerOffset = RootLocal(WorldCenterOf(sc.center));
+                info.radius = sc.radius;
+            }
+            else if (col is CapsuleCollider cap)
+            {
+                info.shape = ColliderShapeType.Capsule;
+                info.centerOffset = RootLocal(WorldCenterOf(cap.center));
+                info.radius = cap.radius;
+                info.capsuleHeight = cap.height;
+                info.capsuleAxis = (int)cap.direction;
+            }
+            else if (col is MeshCollider)
+            {
+                info.shape = ColliderShapeType.ConvexMesh;
+                info.meshHullIndex = -1; // resolved at runtime via originalMesh
+            }
+            else
+            {
+                info.shape = ColliderShapeType.Box;
+                var b = col.bounds;
+                info.centerOffset = RootLocal(b.center);
+                info.halfExtents = (float3)b.extents;
+            }
+
+            return info;
+        }
+
         bool BakeSingle(AssetEntry entry)
         {
             var sourcePath = entry.assetPath;
@@ -543,6 +603,8 @@ namespace MiniECS.Rendering.Authoring.Editor
             var skinnedMR = tempGO.GetComponentInChildren<SkinnedMeshRenderer>();
             var meshFilter = tempGO.GetComponentInChildren<MeshFilter>();
             var meshRenderer = tempGO.GetComponentInChildren<MeshRenderer>();
+
+            var colliderInfo = CaptureCollider(tempGO);
 
             var clips = entry.clips;
             var bakedMesh = new Mesh();
@@ -769,6 +831,7 @@ namespace MiniECS.Rendering.Authoring.Editor
             vatData.clips = clipInfos;
             vatData.vertexCount = vertexCount;
             vatData.totalFrames = totalFrames;
+            vatData.colliderInfo = colliderInfo;
 
             ExtractMaterialProperties(srcMat, vatData);
 

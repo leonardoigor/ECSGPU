@@ -1,6 +1,6 @@
-using UnityEngine;
 using MiniECS;
 using MiniECS.Rendering;
+using UnityEngine;
 
 public class VatGpuRenderSpawner : MonoBehaviour
 {
@@ -25,6 +25,7 @@ public class VatGpuRenderSpawner : MonoBehaviour
 
     [Header("Mode")]
     public bool flipFlop = true;
+    public bool useCollider = true;
 
     [Header("Color")]
     public bool randomColors = true;
@@ -77,6 +78,7 @@ public class VatGpuRenderSpawner : MonoBehaviour
     {
         int modelIndex = flipFlop ? (index % vatModels.Length) : Random.Range(0, vatModels.Length);
         int modelId = modelIds[modelIndex];
+        var vat = vatModels[modelIndex];
         var clips = vatModels[modelIndex].clips;
         int clipCount = clips.Length;
         int startAnim = clipCount > 0 ? Random.Range(0, clipCount) : 0;
@@ -111,7 +113,8 @@ public class VatGpuRenderSpawner : MonoBehaviour
             agentColor = modelColors[modelIndex];
 
         EntityManager.Add(entity, new ColorComponent { Value = agentColor });
-
+        if (vat.HasCollider && useCollider)
+            EntityManager.Add(entity, vat.BuildColliderComponent(vat.originalMesh));
         entities[index] = entity.Id;
         animCounts[index] = clipCount;
         timers[index] = Random.Range(minInterval, maxInterval);
