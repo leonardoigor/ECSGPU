@@ -413,6 +413,8 @@ MonoBehaviour:
   vatModels:
   - {fileID: 11400000, guid: a1c94e0499285974ca4d133d0a1aed16, type: 2}
   - {fileID: 11400000, guid: 8e99d53d3a71d404990b5cd5825bec4e, type: 2}
+  Objects:
+  - {fileID: 11400000, guid: bc99fec00d71d0c45a989de7eeb035f1, type: 2}
   count: 5000
   center: {x: 0, y: 0, z: 0}
   spacing: 2

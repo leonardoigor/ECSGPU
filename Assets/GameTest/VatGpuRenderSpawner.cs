@@ -6,6 +6,7 @@ public class VatGpuRenderSpawner : MonoBehaviour
 {
     [Header("VAT Models")]
     public VatAnimationData[] vatModels;
+    public VatAnimationData[] Objects;
 
     [Header("Grid Spawn")]
     public int count = 10000;
