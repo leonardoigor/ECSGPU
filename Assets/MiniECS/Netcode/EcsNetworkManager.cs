@@ -8,6 +8,7 @@ namespace MiniECS.Netcode
 {
     public class EcsNetworkManager : MonoBehaviour
     {
+        public const string ClientRequestMessageName = "MiniEcsClientRequest";
         float _timer;
 
         bool _initialized;
@@ -31,6 +32,15 @@ namespace MiniECS.Netcode
                     {
                         NetworkManager.Singleton.CustomMessagingManager
                             .UnregisterNamedMessageHandler(SyncConfig.MessageName);
+                    }
+                    catch { }
+                }
+                else
+                {
+                    try
+                    {
+                        NetworkManager.Singleton.CustomMessagingManager
+                            .UnregisterNamedMessageHandler(ClientRequestMessageName);
                     }
                     catch { }
                 }
@@ -62,13 +72,23 @@ namespace MiniECS.Netcode
                 NetworkManager.Singleton.CustomMessagingManager
                     .RegisterNamedMessageHandler(SyncConfig.MessageName, OnMessageReceived);
             }
+            else
+            {
+                NetworkManager.Singleton.CustomMessagingManager
+                    .RegisterNamedMessageHandler(ClientRequestMessageName, OnClientRequestReceived);
+            }
 
             _initialized = true;
         }
 
         void Update()
         {
-            if (!_initialized || !_isServer) return;
+            if (!_initialized)
+            {
+                TryInitialize();
+                return;
+            }
+            if (!_isServer) return;
 
             _timer += Time.deltaTime;
             if (_timer < SyncConfig.SyncInterval) return;
@@ -89,7 +109,7 @@ namespace MiniECS.Netcode
 
             var syncIds = CollectSyncEntityIds();
 
-            writer.WriteByte(0); // message type: FullSnapshot
+            writer.WriteByteSafe(0); // message type: FullSnapshot
             writer.WriteValueSafe(syncIds.Count);
 
             foreach (int eid in syncIds)
@@ -98,6 +118,79 @@ namespace MiniECS.Netcode
             NetworkManager.Singleton.CustomMessagingManager
                 .SendNamedMessageToAll(SyncConfig.MessageName, writer,
                     SyncConfig.Delivery);
+        }
+
+        // ── Client: Send Entity Request to Server ──────────────────────
+
+        public void SendRequestToServer(Entity entity)
+        {
+            if (_isServer) return;
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+                return;
+
+            using var writer = new FastBufferWriter(512, Unity.Collections.Allocator.Temp,
+                ushort.MaxValue);
+
+            writer.WriteByteSafe(1); // message type: ClientRequest
+            ComponentSerializer.WriteEntity(writer, entity.Id);
+
+            var serverId = NetworkManager.ServerClientId;
+            NetworkManager.Singleton.CustomMessagingManager
+                .SendNamedMessage(ClientRequestMessageName, serverId, writer,
+                    SyncConfig.Delivery);
+        }
+
+        // ── Server: Handle Incoming Client Request ─────────────────────
+
+        void OnClientRequestReceived(ulong clientId, FastBufferReader reader)
+        {
+            try
+            {
+                reader.ReadByteSafe(out _); // message type: ClientRequest
+
+                var (_, components) = ComponentSerializer.ReadEntity(reader);
+
+                var entity = EntityManager.CreateEntity();
+
+                MethodInfo addGeneric = null;
+                foreach (var (typeIndex, data) in components)
+                {
+                    var type = ComponentSerializer.IndexToType[typeIndex];
+                    if (addGeneric == null)
+                    {
+                        addGeneric = typeof(EntityManager).GetMethod("Add",
+                            BindingFlags.Public | BindingFlags.Static);
+                    }
+                    var genericAdd = addGeneric.MakeGenericMethod(type);
+                    genericAdd.Invoke(null, new object[] { entity, data });
+                }
+
+                string username = string.Empty;
+                if (EntityManager.Has<MatchRequestComponent>(entity.Id))
+                {
+                    username = EntityManager.Pool<MatchRequestComponent>().Get(entity.Id).Username;
+                    EntityManager.RemoveComponent<MatchRequestComponent>(entity.Id);
+                }
+
+                EntityManager.Add(entity, new PlayerInfoComponent
+                {
+                    ClientId = clientId,
+                    Username = username
+                });
+
+                EntityManager.Add(entity, new MatchStatusComponent
+                {
+                    ClientId = clientId,
+                    Status = MatchStatus.Searching
+                });
+
+                Debug.Log($"[EcsNetworkManager] Player '{username}' (client {clientId}) joined matchmaking " +
+                          $"(entity {entity.Id}).");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[EcsNetworkManager] Error processing client request: {ex}");
+            }
         }
 
         static List<int> CollectSyncEntityIds()
@@ -125,7 +218,7 @@ namespace MiniECS.Netcode
         {
             try
             {
-                reader.ReadByte(out _); // message type: FullSnapshot
+                reader.ReadByteSafe(out _); // message type: FullSnapshot
                 reader.ReadValueSafe(out int entityCount);
 
                 var incomingIds = new HashSet<int>();

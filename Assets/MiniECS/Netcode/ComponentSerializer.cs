@@ -60,7 +60,7 @@ namespace MiniECS.Netcode
             var fields = _typeFields[type];
             return (writer, obj) =>
             {
-                writer.WriteByte((byte)fields.Length);
+                writer.WriteByteSafe((byte)fields.Length);
                 foreach (var f in fields)
                     WriteField(writer, f.FieldType, f.GetValue(obj));
             };
@@ -72,7 +72,7 @@ namespace MiniECS.Netcode
             return (reader) =>
             {
                 object boxed = Activator.CreateInstance(type);
-                reader.ReadByte(out _); // consume field count
+                reader.ReadByteSafe(out _); // consume field count
                 foreach (var f in fields)
                     f.SetValue(boxed, ReadField(reader, f.FieldType));
                 return boxed;
@@ -86,7 +86,7 @@ namespace MiniECS.Netcode
             writer.WriteValueSafe(entityId);
 
             var comps = CollectSyncComponents(entityId);
-            writer.WriteByte((byte)comps.Count);
+            writer.WriteByteSafe((byte)comps.Count);
 
             foreach (var (type, data) in comps)
             {
@@ -99,7 +99,7 @@ namespace MiniECS.Netcode
             FastBufferReader reader)
         {
             reader.ReadValueSafe(out int entityId);
-            reader.ReadByte(out byte compCount);
+            reader.ReadByteSafe(out byte compCount);
             var list = new List<(short, object)>(compCount);
 
             for (int i = 0; i < compCount; i++)
@@ -133,26 +133,26 @@ namespace MiniECS.Netcode
 
         static void WriteField(FastBufferWriter writer, Type type, object val)
         {
-            if (type == typeof(int))         { writer.WriteValueSafe((int)val); return; }
-            if (type == typeof(uint))        { writer.WriteValueSafe((uint)val); return; }
-            if (type == typeof(float))       { writer.WriteValueSafe((float)val); return; }
-            if (type == typeof(double))      { writer.WriteValueSafe((double)val); return; }
-            if (type == typeof(bool))        { writer.WriteValueSafe((bool)val); return; }
-            if (type == typeof(byte))        { writer.WriteValueSafe((byte)val); return; }
-            if (type == typeof(sbyte))       { writer.WriteValueSafe((sbyte)val); return; }
-            if (type == typeof(short))       { writer.WriteValueSafe((short)val); return; }
-            if (type == typeof(ushort))      { writer.WriteValueSafe((ushort)val); return; }
-            if (type == typeof(long))        { writer.WriteValueSafe((long)val); return; }
-            if (type == typeof(ulong))       { writer.WriteValueSafe((ulong)val); return; }
-            if (type == typeof(Vector2))     { writer.WriteValueSafe((Vector2)val); return; }
-            if (type == typeof(Vector3))     { writer.WriteValueSafe((Vector3)val); return; }
-            if (type == typeof(Vector2Int))  { writer.WriteValueSafe((Vector2Int)val); return; }
-            if (type == typeof(Vector3Int))  { writer.WriteValueSafe((Vector3Int)val); return; }
-            if (type == typeof(Quaternion))  { writer.WriteValueSafe((Quaternion)val); return; }
-            if (type == typeof(Color))       { writer.WriteValueSafe((Color)val); return; }
-            if (type == typeof(string))      { writer.WriteValueSafe((string)val ?? ""); return; }
-            if (type == typeof(vector2))     { var v = (vector2)val; writer.WriteValueSafe(v.x); writer.WriteValueSafe(v.y); return; }
-            if (type == typeof(vector3))     { var v = (vector3)val; writer.WriteValueSafe(v.x); writer.WriteValueSafe(v.y); writer.WriteValueSafe(v.z); return; }
+            if (type == typeof(int)) { writer.WriteValueSafe((int)val); return; }
+            if (type == typeof(uint)) { writer.WriteValueSafe((uint)val); return; }
+            if (type == typeof(float)) { writer.WriteValueSafe((float)val); return; }
+            if (type == typeof(double)) { writer.WriteValueSafe((double)val); return; }
+            if (type == typeof(bool)) { writer.WriteValueSafe((bool)val); return; }
+            if (type == typeof(byte)) { writer.WriteValueSafe((byte)val); return; }
+            if (type == typeof(sbyte)) { writer.WriteValueSafe((sbyte)val); return; }
+            if (type == typeof(short)) { writer.WriteValueSafe((short)val); return; }
+            if (type == typeof(ushort)) { writer.WriteValueSafe((ushort)val); return; }
+            if (type == typeof(long)) { writer.WriteValueSafe((long)val); return; }
+            if (type == typeof(ulong)) { writer.WriteValueSafe((ulong)val); return; }
+            if (type == typeof(Vector2)) { writer.WriteValueSafe((Vector2)val); return; }
+            if (type == typeof(Vector3)) { writer.WriteValueSafe((Vector3)val); return; }
+            if (type == typeof(Vector2Int)) { writer.WriteValueSafe((Vector2Int)val); return; }
+            if (type == typeof(Vector3Int)) { writer.WriteValueSafe((Vector3Int)val); return; }
+            if (type == typeof(Quaternion)) { writer.WriteValueSafe((Quaternion)val); return; }
+            if (type == typeof(Color)) { writer.WriteValueSafe((Color)val); return; }
+            if (type == typeof(string)) { writer.WriteValueSafe((string)val ?? ""); return; }
+            if (type == typeof(vector2)) { var v = (vector2)val; writer.WriteValueSafe(v.x); writer.WriteValueSafe(v.y); return; }
+            if (type == typeof(vector3)) { var v = (vector3)val; writer.WriteValueSafe(v.x); writer.WriteValueSafe(v.y); writer.WriteValueSafe(v.z); return; }
 
             if (type.IsEnum)
             {
@@ -165,26 +165,26 @@ namespace MiniECS.Netcode
 
         static object ReadField(FastBufferReader reader, Type type)
         {
-            if (type == typeof(int))         { reader.ReadValueSafe(out int v); return v; }
-            if (type == typeof(uint))        { reader.ReadValueSafe(out uint v); return v; }
-            if (type == typeof(float))       { reader.ReadValueSafe(out float v); return v; }
-            if (type == typeof(double))      { reader.ReadValueSafe(out double v); return v; }
-            if (type == typeof(bool))        { reader.ReadValueSafe(out bool v); return v; }
-            if (type == typeof(byte))        { reader.ReadValueSafe(out byte v); return v; }
-            if (type == typeof(sbyte))       { reader.ReadValueSafe(out sbyte v); return v; }
-            if (type == typeof(short))       { reader.ReadValueSafe(out short v); return v; }
-            if (type == typeof(ushort))      { reader.ReadValueSafe(out ushort v); return v; }
-            if (type == typeof(long))        { reader.ReadValueSafe(out long v); return v; }
-            if (type == typeof(ulong))       { reader.ReadValueSafe(out ulong v); return v; }
-            if (type == typeof(Vector2))     { reader.ReadValueSafe(out Vector2 v); return v; }
-            if (type == typeof(Vector3))     { reader.ReadValueSafe(out Vector3 v); return v; }
-            if (type == typeof(Vector2Int))  { reader.ReadValueSafe(out Vector2Int v); return v; }
-            if (type == typeof(Vector3Int))  { reader.ReadValueSafe(out Vector3Int v); return v; }
-            if (type == typeof(Quaternion))  { reader.ReadValueSafe(out Quaternion v); return v; }
-            if (type == typeof(Color))       { reader.ReadValueSafe(out Color v); return v; }
-            if (type == typeof(string))      { reader.ReadValueSafe(out string v); return v; }
-            if (type == typeof(vector2))     { reader.ReadValueSafe(out float vx); reader.ReadValueSafe(out float vy); return new vector2(vx, vy); }
-            if (type == typeof(vector3))     { reader.ReadValueSafe(out float vx); reader.ReadValueSafe(out float vy); reader.ReadValueSafe(out float vz); return new vector3(vx, vy, vz); }
+            if (type == typeof(int)) { reader.ReadValueSafe(out int v); return v; }
+            if (type == typeof(uint)) { reader.ReadValueSafe(out uint v); return v; }
+            if (type == typeof(float)) { reader.ReadValueSafe(out float v); return v; }
+            if (type == typeof(double)) { reader.ReadValueSafe(out double v); return v; }
+            if (type == typeof(bool)) { reader.ReadValueSafe(out bool v); return v; }
+            if (type == typeof(byte)) { reader.ReadValueSafe(out byte v); return v; }
+            if (type == typeof(sbyte)) { reader.ReadValueSafe(out sbyte v); return v; }
+            if (type == typeof(short)) { reader.ReadValueSafe(out short v); return v; }
+            if (type == typeof(ushort)) { reader.ReadValueSafe(out ushort v); return v; }
+            if (type == typeof(long)) { reader.ReadValueSafe(out long v); return v; }
+            if (type == typeof(ulong)) { reader.ReadValueSafe(out ulong v); return v; }
+            if (type == typeof(Vector2)) { reader.ReadValueSafe(out Vector2 v); return v; }
+            if (type == typeof(Vector3)) { reader.ReadValueSafe(out Vector3 v); return v; }
+            if (type == typeof(Vector2Int)) { reader.ReadValueSafe(out Vector2Int v); return v; }
+            if (type == typeof(Vector3Int)) { reader.ReadValueSafe(out Vector3Int v); return v; }
+            if (type == typeof(Quaternion)) { reader.ReadValueSafe(out Quaternion v); return v; }
+            if (type == typeof(Color)) { reader.ReadValueSafe(out Color v); return v; }
+            if (type == typeof(string)) { reader.ReadValueSafe(out string v); return v; }
+            if (type == typeof(vector2)) { reader.ReadValueSafe(out float vx); reader.ReadValueSafe(out float vy); return new vector2(vx, vy); }
+            if (type == typeof(vector3)) { reader.ReadValueSafe(out float vx); reader.ReadValueSafe(out float vy); reader.ReadValueSafe(out float vz); return new vector3(vx, vy, vz); }
 
             if (type.IsEnum)
             {
